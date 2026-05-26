@@ -1,0 +1,150 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/app/contracts-hardhat/contracts/CelestialSBT.sol": {
+      "lastModificationDate": 1779814841618,
+      "contentHash": "ea2d5a308b94ef7c492a8fe6e82acb3d",
+      "sourceName": "contracts/CelestialSBT.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "cancun",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "CelestialSBT"
+      ]
+    },
+    "/app/contracts-hardhat/contracts/CredentialVault.sol": {
+      "lastModificationDate": 1779814841711,
+      "contentHash": "613a7abbed97eab48eee41ab1bafcf49",
+      "sourceName": "contracts/CredentialVault.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "cancun",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "CredentialVault"
+      ]
+    },
+    "/app/contracts-hardhat/contracts/Groth16Verifier.sol": {
+      "lastModificationDate": 1779814841456,
+      "contentHash": "6831f139fec9cd05ba61dac3fc269806",
+      "sourceName": "contracts/Groth16Verifier.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "cancun",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "Groth16Verifier"
+      ]
+    },
+    "/app/contracts-hardhat/contracts/IdentityRegistry.sol": {
+      "lastModificationDate": 1779814841619,
+      "contentHash": "d67964d627675dc99b242e68f2f1b5eb",
+      "sourceName": "contracts/IdentityRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "cancun",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "IGroth16Verifier",
+        "IdentityRegistry"
+      ]
+    }
+  }
+}

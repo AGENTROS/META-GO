@@ -51,13 +51,32 @@ export default function SignupPage() {
   async function handleMint() {
     setMinting(true);
     try {
-      // Simulation mint (contracts not deployed in preview)
-      await new Promise(r => setTimeout(r, 2000));
-
       store.setHandle(handle);
       const did = `did:metago:${address?.toLowerCase()}`;
       const fullDID = `did:metago:polygon:${address?.toLowerCase()}`;
       store.setDID(did, fullDID);
+
+      // Call backend — backend submits the REAL on-chain mint via Hardhat relayer
+      const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const syncRes = await fetch(`${backend}/api/user/sync`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handle, email, voiceHash,
+          walletAddress: address, did,
+          zkProof: {
+            proofHash, nullifier: realProof?.nullifier || `nul-${Date.now()}`,
+            algorithm: realProof?.algorithm || 'simulation-bn128',
+            isReal: !!realProof?.isReal,
+            generatedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
+            integrityScore: realProof?.integrityScore || 85,
+          },
+        }),
+      }).then(r => r.json()).catch(() => ({ ok: false }));
+
+      const onchain = syncRes.onchain || { mode: 'simulation' };
+
       store.addSBT({
         id: 'sbt-genesis-' + Date.now(),
         name: 'Genesis Citizen',
@@ -66,36 +85,18 @@ export default function SignupPage() {
         domain: 'GAMING',
         chain: 'POLYGON',
         status: 'VALID',
-        txHash: '0x' + (address?.slice(2) || '').padEnd(64, '0').slice(0, 64),
-        description: 'Founding sovereign citizen credential — biometric ZK proof on-chain.',
+        txHash: onchain.txHash || ('0x' + (address?.slice(2) || '').padEnd(64, '0').slice(0, 64)),
+        description: onchain.mode === 'real'
+          ? `Real on-chain SBT minted on chain ${onchain.chainId} (token #${onchain.tokenId}).`
+          : 'Sovereign founding citizen credential — biometric ZK proof anchored.',
       });
       store.hydrateMockData();
 
-      try {
-        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-        await fetch(`${backend}/api/user/sync`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            handle, email, voiceHash,
-            walletAddress: address,
-            did,
-            zkProof: {
-              proofHash, nullifier: realProof?.nullifier || `nul-${Date.now()}`,
-              algorithm: realProof?.algorithm || 'simulation-bn128',
-              isReal: !!realProof?.isReal,
-              generatedAt: new Date().toISOString(),
-              expiresAt: new Date(Date.now() + 86400000 * 30).toISOString(),
-              integrityScore: realProof?.integrityScore || 85,
-            }
-          }),
-        });
-      } catch (e) {
-        console.warn('Backend sync skipped:', e);
+      if (onchain.mode === 'real') {
+        toast.success(`✓ Real on-chain SBT minted! Token #${onchain.tokenId}`);
+      } else {
+        toast.success('Identity Registered! Welcome to Meta Go.');
       }
-
-      toast.success('Identity Registered! Welcome to Meta Go.');
       document.cookie = 'celestial_auth=1; path=/; max-age=86400';
       router.push('/dashboard');
     } catch (e) {

@@ -15,5 +15,8 @@
     "hardhat": "^2.22.0",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "snarkjs": "^0.7.6"
   }
 }

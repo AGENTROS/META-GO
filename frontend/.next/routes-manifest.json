@@ -84,6 +84,12 @@
       "namedRegex": "^/docs(?:/)?$"
     },
     {
+      "page": "/embed",
+      "regex": "^/embed(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/embed(?:/)?$"
+    },
+    {
       "page": "/profile",
       "regex": "^/profile(?:/)?$",
       "routeKeys": {},
@@ -112,6 +118,12 @@
       "regex": "^/settings(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/settings(?:/)?$"
+    },
+    {
+      "page": "/try",
+      "regex": "^/try(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/try(?:/)?$"
     },
     {
       "page": "/vault",

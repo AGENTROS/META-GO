@@ -8,11 +8,13 @@
   "/billing/page": "/billing",
   "/dashboard/page": "/dashboard",
   "/docs/page": "/docs",
+  "/embed/page": "/embed",
   "/page": "/",
   "/profile/page": "/profile",
   "/recovery/page": "/recovery",
   "/sbt-gallery/page": "/sbt-gallery",
   "/security/page": "/security",
   "/settings/page": "/settings",
+  "/try/page": "/try",
   "/vault/page": "/vault"
 }

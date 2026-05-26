@@ -183,7 +183,31 @@ async def user_sync(body: UserSyncBody):
             {"nullifier": body.zkProof.nullifier},
             {"$set": {**body.zkProof.model_dump(), "walletAddress": addr}}, upsert=True,
         )
-    return {"ok": True, "did": body.did, "syncedAt": _now_iso()}
+
+    # ── REAL on-chain SBT mint via Hardhat relayer ───────────────────
+    onchain: Dict[str, Any] = {"mode": "skipped"}
+    try:
+        from relayer import relayer
+        if relayer.available():
+            domain = "GAMING"
+            uri = f"metago://identity/{body.did}"
+            onchain = relayer.mint_sbt(addr, domain, uri)
+            if onchain.get("ok"):
+                await db.sbts.insert_one({
+                    "walletAddress": addr,
+                    "domain": domain,
+                    "tokenId": onchain.get("tokenId"),
+                    "txHash": onchain.get("txHash"),
+                    "blockNumber": onchain.get("blockNumber"),
+                    "chainId": onchain.get("chainId"),
+                    "contract": onchain.get("contract"),
+                    "issuedAt": _now_iso(),
+                    "status": "VALID",
+                })
+    except Exception as e:
+        onchain = {"mode": "error", "reason": str(e)}
+
+    return {"ok": True, "did": body.did, "syncedAt": _now_iso(), "onchain": onchain}
 
 
 @app.get("/api/user/me")
@@ -512,19 +536,119 @@ async def billing_checkout(body: CheckoutBody):
             )
         return {"ok": True, "type": "activated", "plan": "free"}
 
-    # Stripe-compatible session shape (replace `checkoutUrl` with real
-    # Stripe session URL once Stripe keys are configured).
-    session_id = "cs_" + secrets.token_hex(16)
     plan = PLANS[body.plan]
+
+    # ── REAL Stripe Checkout Session ─────────────────────────────────
+    stripe_key = os.environ.get("STRIPE_API_KEY", "")
+    if stripe_key and stripe_key.startswith("sk_"):
+        try:
+            import stripe
+            stripe.api_key = stripe_key
+            base = "https://soulbound-identity.preview.emergentagent.com"
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                mode="subscription" if plan["billing"] == "monthly" else "payment",
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": f"Meta Go {plan['name']}",
+                            "description": ", ".join(plan["features"][:3]),
+                        },
+                        "unit_amount": int(plan["priceUsd"] * 100),
+                        "recurring": {"interval": "month"} if plan["billing"] == "monthly" else None,
+                    },
+                    "quantity": 1,
+                }],
+                success_url=f"{base}/billing?success=true&plan={body.plan}",
+                cancel_url=f"{base}/billing?cancelled=true",
+                metadata={
+                    "walletAddress": body.walletAddress or "",
+                    "plan": body.plan,
+                },
+            )
+            return {
+                "ok": True, "type": "checkout_redirect",
+                "sessionId": session.id, "checkoutUrl": session.url,
+                "plan": body.plan, "priceUsd": plan["priceUsd"], "billing": plan["billing"],
+                "real": True,
+            }
+        except Exception as e:
+            # Fall through to placeholder
+            return {
+                "ok": True, "type": "checkout_redirect",
+                "sessionId": "cs_" + secrets.token_hex(16),
+                "checkoutUrl": f"/billing?plan={body.plan}&simulated=true",
+                "plan": body.plan, "priceUsd": plan["priceUsd"], "billing": plan["billing"],
+                "real": False, "stripeError": str(e)[:200],
+            }
+
     return {
-        "ok": True,
-        "type": "checkout_redirect",
-        "sessionId": session_id,
-        "checkoutUrl": f"https://checkout.stripe.com/c/pay/{session_id}",  # placeholder
-        "plan": body.plan,
-        "priceUsd": plan["priceUsd"],
-        "billing": plan["billing"],
+        "ok": True, "type": "checkout_redirect",
+        "sessionId": "cs_" + secrets.token_hex(16),
+        "checkoutUrl": f"/billing?plan={body.plan}&simulated=true",
+        "plan": body.plan, "priceUsd": plan["priceUsd"], "billing": plan["billing"],
+        "real": False,
     }
+
+
+# ===========================================================================
+# DEMO ATTEMPTS — public Try-Me embed analytics
+# ===========================================================================
+class DemoAttempt(BaseModel):
+    referrer: Optional[str] = None
+    handle: Optional[str] = None
+    completed: bool = False
+    durationMs: Optional[int] = None
+    livenessScore: Optional[float] = None
+
+
+@app.post("/api/demo/track")
+async def demo_track(body: DemoAttempt):
+    await db.demo_attempts.insert_one({
+        **body.model_dump(),
+        "createdAt": _now_iso(),
+    })
+    total = await db.demo_attempts.count_documents({})
+    completed = await db.demo_attempts.count_documents({"completed": True})
+    return {"ok": True, "totalAttempts": total, "completedAttempts": completed}
+
+
+@app.get("/api/demo/stats")
+async def demo_stats():
+    total = await db.demo_attempts.count_documents({})
+    completed = await db.demo_attempts.count_documents({"completed": True})
+    last_24h = await db.demo_attempts.count_documents({
+        "createdAt": {"$gte": (datetime.now(timezone.utc).replace(hour=0)).isoformat()}
+    })
+    return {
+        "totalAttempts": total,
+        "completedAttempts": completed,
+        "conversionRate": round(completed / total * 100, 1) if total else 0,
+        "last24h": last_24h,
+    }
+
+
+# ===========================================================================
+# On-chain Identity Status
+# ===========================================================================
+@app.get("/api/onchain/status/{address}")
+async def onchain_status(address: str):
+    try:
+        from relayer import relayer
+        if not relayer.available():
+            return {"online": False, "mode": "simulation", "chainId": None}
+        bal = relayer.get_balance(address)
+        return {
+            "online": True, "mode": "real",
+            "chainId": relayer.w3.eth.chain_id,
+            "blockNumber": relayer.w3.eth.block_number,
+            "sbtBalance": bal,
+            "address": address.lower(),
+            "contracts": relayer.addresses,
+        }
+    except Exception as e:
+        return {"online": False, "mode": "error", "reason": str(e)}
 
 
 @app.get("/api/billing/subscription/{address}")
