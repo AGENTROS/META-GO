@@ -1,0 +1,18 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/page": "/admin",
+  "/api-docs/page": "/api-docs",
+  "/auth/page": "/auth",
+  "/auth/signin/page": "/auth/signin",
+  "/auth/signup/page": "/auth/signup",
+  "/billing/page": "/billing",
+  "/dashboard/page": "/dashboard",
+  "/page": "/",
+  "/profile/page": "/profile",
+  "/recovery/page": "/recovery",
+  "/sbt-gallery/page": "/sbt-gallery",
+  "/security/page": "/security",
+  "/settings/page": "/settings",
+  "/vault/page": "/vault"
+}

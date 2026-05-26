@@ -1,0 +1,48 @@
+{
+  "summary": "First test run of Meta Go IDaaS. Backend: 21/21 pytest tests passed against all required endpoints (health, SIWE nonce/verify, user sync, ZK verify-proof, relay rate-limit + nullifier replay, credentials, DID methods/resolve/cross-chain, billing plans/checkout/subscription, SBTs). Frontend: 9/10 pages render correctly (landing, dashboard with IdentityRadar, signup wizard step 0, vault with VC import modal, recovery, security, billing with 4 plans, sbt-gallery, settings). One critical routing bug: /api-docs returns 404 because the Kubernetes ingress treats any path starting with /api as backend traffic, so the Next.js /api-docs page is unreachable.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ApiDocsPage",
+        "issue": "Route /api-docs returns backend 404 ({'detail':'Not Found'}). The K8s ingress routes everything starting with /api/* to backend:8001, so the Next.js page at /app/frontend/src/app/api-docs/page.tsx is shadowed. Page is completely unreachable in the preview environment.",
+        "selector": "/api-docs",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Rename frontend route /api-docs to something that doesn't collide with the /api ingress prefix (e.g., /docs, /developer-docs, or /reference). Update any nav links pointing to /api-docs accordingly.",
+    "Recurring 404 console errors on every page are caused by the same /api-docs probe (or a missing favicon/asset). Verify no static asset is being requested under /api/*; if it is, move it under /public.",
+    "Optional: backend /api/auth/verify accepts any signature with len>=60 by extracting the address from the message body when siwe-py fails — acceptable in simulation mode, but log a clear WARN so production deploys don't silently skip verification."
+  ],
+  "critical_code_review_comments": [
+    "server.py at 552 lines is on the upper bound of the 700-line threshold; consider splitting into routers (auth.py, did.py, billing.py, zk.py) before adding more endpoints.",
+    "_relay_buckets is an in-process dict — rate limiting will not be enforced across multiple backend workers/pods. For production this should move to Redis.",
+    "DID resolver does not validate checksum-case of addresses (blockchainAccountId returns lowercased hex). EIP-55 checksum would be ideal for W3C compliance.",
+    "billing/checkout for 'starter'/'pro' returns a placeholder Stripe URL (https://checkout.stripe.com/c/pay/cs_...) — clearly MOCKED, ensure UI shows this as simulation before going live.",
+    "Smart contract mint and ZK Groth16 proof generation run in SIMULATION mode (no Hardhat node, contract addrs are 0x0). This is documented and expected for the preview env."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (created)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "90%"
+  },
+  "test_credentials": "Not applicable — wallet-based auth in simulation mode. Backend /api/auth/verify accepts any signature with length>=60 and extracts address from the message body when siwe-py fails (graceful fallback). No real Stripe keys; no real chain RPC.",
+  "seed_data_creation": "None. Tests use random 0x addresses + TEST_ prefixed handles; data persists in mongo `test_database` (idempotent upserts). No cleanup teardown was added — collections will accumulate test users/nullifiers across runs. Recommend adding a cleanup endpoint or fixture if this becomes noisy.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend is 100% green and stable. The only remaining bug is the /api-docs route collision with the K8s /api ingress. After main agent renames the route, retest by hitting the new URL and verifying the api endpoint list renders. MetaMask wallet connection cannot be tested in headless browser — wizard testing is limited to step 0 (handle/consent). Mocked items: ZK proofs (simulation), smart contracts (0x0 addrs), Stripe (placeholder URL), SIWE verification (fallback to address extraction). Re-run backend_test.py with `pytest /app/backend/tests/backend_test.py -v` for regression.",
+  "rca_of_issue": "Bug: /api-docs returns 404. RCA: Kubernetes ingress configuration matches the prefix /api and forwards to backend port 8001. The path /api-docs starts with /api so the ingress routes it to FastAPI, which has no matching route and returns {'detail':'Not Found'}. The Next.js page at /app/frontend/src/app/api-docs/page.tsx is never reached. Reproduction: curl https://soulbound-identity.preview.emergentagent.com/api-docs returns 404 JSON from FastAPI. Mitigation: rename the Next.js route directory to /docs or /developer (anything not starting with /api). Update all internal links (DOCS button in header) to the new path."
+}
