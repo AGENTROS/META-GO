@@ -47,12 +47,12 @@ export function Navbar() {
     { href: '/sbt-gallery', label: 'Credentials' },
     { href: '/vault', label: 'Vault' },
     { href: '/billing', label: 'Plans' },
-    { href: '/api-docs', label: 'Docs' },
+    { href: '/docs', label: 'Docs' },
   ] : [
     { href: '/#features', label: 'Features' },
     { href: '/billing', label: 'Pricing' },
     { href: '/#demo', label: 'Demo' },
-    { href: '/api-docs', label: 'Docs' },
+    { href: '/docs', label: 'Docs' },
   ];
 
   return (

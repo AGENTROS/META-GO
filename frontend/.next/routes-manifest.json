@@ -48,12 +48,6 @@
       "namedRegex": "^/admin(?:/)?$"
     },
     {
-      "page": "/api-docs",
-      "regex": "^/api\\-docs(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/api\\-docs(?:/)?$"
-    },
-    {
       "page": "/auth",
       "regex": "^/auth(?:/)?$",
       "routeKeys": {},
@@ -82,6 +76,12 @@
       "regex": "^/dashboard(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/docs",
+      "regex": "^/docs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/docs(?:/)?$"
     },
     {
       "page": "/profile",
