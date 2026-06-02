@@ -29,7 +29,7 @@ export function useSIWE() {
       });
 
       const prepared = message.prepareMessage();
-      const signature = await signMessageAsync({ message: prepared });
+      const signature = await signMessageAsync({ account: address, message: prepared });
 
       const verifyRes = await fetch(`${backend}/api/auth/verify`, {
         method: 'POST',

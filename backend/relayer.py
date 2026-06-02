@@ -24,7 +24,13 @@ DEPLOYER_KEY = os.environ.get(
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 )
 
-ADDR_FILE = "/app/contracts-hardhat/deployed-addresses.json"
+ADDR_FILE = os.path.abspath(
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "contracts-hardhat",
+        "deployed-addresses.json",
+    )
+)
 
 # Minimal ABIs
 SBT_ABI = json.loads(

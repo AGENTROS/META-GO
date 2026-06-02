@@ -51,6 +51,7 @@ export async function generateZKProof(landmarks: number[][] | null, walletAddres
 
   try {
     const snarkjs: any = await Promise.race([
+      // @ts-ignore
       import('snarkjs').catch(() => null),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500)),
     ]);

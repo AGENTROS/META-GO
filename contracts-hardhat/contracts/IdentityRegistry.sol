@@ -27,6 +27,7 @@ contract IdentityRegistry {
 
     event IdentityRegistered(address indexed wallet, string did, string handle);
     event IdentityUpdated(address indexed wallet, bytes32 newProofHash);
+    event CrossChainSyncInitiated(uint64 indexed destinationChainSelector, address indexed wallet, string did, string handle);
 
     constructor(address _verifier) {
         verifier = IGroth16Verifier(_verifier);
@@ -61,5 +62,10 @@ contract IdentityRegistry {
 
     function isRegistered(address wallet) external view returns (bool) {
         return identities[wallet].active;
+    }
+
+    function syncCrossChain(uint64 _destinationChainSelector) external {
+        require(identities[msg.sender].active, "Identity not registered");
+        emit CrossChainSyncInitiated(_destinationChainSelector, msg.sender, identities[msg.sender].did, identities[msg.sender].handle);
     }
 }
