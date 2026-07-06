@@ -55,7 +55,13 @@ export default function SBTGallery() {
                   <p className="text-xs text-zinc-550 dark:text-zinc-400 leading-relaxed">{t.description}</p>
                   <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                     <span className="text-[9px] font-mono text-zinc-450 truncate">{t.txHash.slice(0, 14)}...</span>
-                    <a href="#" data-testid={`view-tx-${t.id}`} className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
+                    <a 
+                      href={t.txHash.startsWith('0x') ? `https://amoy.polygonscan.com/tx/${t.txHash}` : '#'} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      data-testid={`view-tx-${t.id}`} 
+                      className="text-[10px] text-blue-600 font-bold flex items-center gap-1"
+                    >
                       View <ExternalLink size={9} />
                     </a>
                   </div>

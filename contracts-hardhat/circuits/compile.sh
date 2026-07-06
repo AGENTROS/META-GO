@@ -19,7 +19,7 @@
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="$BASE_DIR/build"
-PUBLIC_DIR="/app/frontend/public/circuits"
+PUBLIC_DIR="$BASE_DIR/../../frontend/public/circuits"
 PTAU_SIZE=12  # supports up to 2^12 constraints (more than enough)
 
 mkdir -p "$OUT_DIR" "$PUBLIC_DIR"

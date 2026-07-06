@@ -24,12 +24,12 @@ const config: HardhatUserConfig = {
     amoy: {
       url: AMOY_RPC,
       chainId: 80002,
-      accounts: [PRIVATE_KEY],
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
     polygon: {
       url: POLYGON_RPC,
       chainId: 137,
-      accounts: [PRIVATE_KEY],
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
   },
   paths: {

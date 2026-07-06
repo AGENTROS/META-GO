@@ -1,20 +1,41 @@
 'use client';
 import { useState, useRef } from 'react';
 import { Mic, CheckCircle2, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Props { onComplete: (voiceHash: string) => void }
 
 const PASSPHRASE = 'I authorize Meta Go to verify my sovereign identity';
 
+function verifyPassphrase(spoken: string, expected: string): boolean {
+  const spokenWords = spoken.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+  const expectedWords = expected.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+  
+  if (spokenWords.length === 0) return false;
+  
+  let matchCount = 0;
+  for (const word of expectedWords) {
+    if (spokenWords.includes(word)) {
+      matchCount++;
+    }
+  }
+  
+  const matchRatio = matchCount / expectedWords.length;
+  return matchRatio >= 0.55; // 55% word match threshold
+}
+
 export function VoiceScanner({ onComplete }: Props) {
   const [phase, setPhase] = useState<'idle' | 'recording' | 'analyzing' | 'done' | 'unsupported'>('idle');
   const [transcript, setTranscript] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [showBypass, setShowBypass] = useState(false);
   const recRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
 
   async function start() {
+    setError(null);
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     // Voice level meter
@@ -34,16 +55,24 @@ export function VoiceScanner({ onComplete }: Props) {
         rafRef.current = requestAnimationFrame(loop);
       }
       loop();
-    } catch {}
-
-    setPhase('recording');
-
-    if (!SpeechRec) {
-      // Fallback: just collect 4s of audio and accept
-      setTranscript('(voice captured via fallback)');
-      setTimeout(() => finalize('fallback-voice-hash'), 4000);
+    } catch (e: any) {
+      console.warn('Microphone access failed:', e);
+      setError('Microphone access denied or unavailable.');
+      setShowBypass(true);
       return;
     }
+
+    if (!SpeechRec) {
+      console.warn('SpeechRecognition API not supported in this browser.');
+      setError('Browser Speech Recognition API is unsupported.');
+      setShowBypass(true);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+      return;
+    }
+
+    setPhase('recording');
 
     const rec = new SpeechRec();
     rec.lang = 'en-US';
@@ -57,17 +86,29 @@ export function VoiceScanner({ onComplete }: Props) {
       setPhase('analyzing');
       setTimeout(() => {
         const t = transcriptRef.current.toLowerCase();
-        const matches = t.includes('meta') || t.includes('go') || t.includes('identity') || t.includes('authorize') || t.length > 6;
-        if (matches) {
+        const isValid = verifyPassphrase(t, PASSPHRASE);
+        if (isValid) {
           finalize(`voice-${hashStr(transcriptRef.current)}`);
         } else {
           setPhase('idle');
           setTranscript('');
+          toast.error('Passphrase mismatch! Please read the sentence exactly.');
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+          }
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
         }
       }, 1200);
     };
-    rec.onerror = () => {
-      finalize('fallback-' + Date.now());
+    rec.onerror = (e: any) => {
+      console.error('Speech recognition error:', e);
+      setError('Voice capturing encountered an error.');
+      setShowBypass(true);
+      setPhase('idle');
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
     recRef.current = rec;
     rec.start();
@@ -117,10 +158,27 @@ export function VoiceScanner({ onComplete }: Props) {
         {transcript && <p className="text-[10px] text-zinc-500 mt-2 font-mono">heard: "{transcript}"</p>}
       </div>
 
+      {error && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-250 dark:border-amber-900/30 rounded-xl flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">Microphone or API Notice</p>
+            <p className="text-[10px] mt-0.5">{error}</p>
+          </div>
+        </div>
+      )}
+
       {phase === 'idle' && (
         <button onClick={start} data-testid="voice-start-btn"
           className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-xl text-sm font-bold transition-all">
           Start Voice Enrollment
+        </button>
+      )}
+
+      {showBypass && phase !== 'done' && (
+        <button onClick={() => finalize('simulated-voice-bypass-' + Date.now())}
+          className="w-full py-2.5 bg-amber-600/10 hover:bg-amber-600/20 text-amber-550 border border-amber-600/25 text-[10px] font-mono rounded-xl tracking-wider uppercase flex items-center justify-center gap-1.5 transition-colors">
+          [Simulator Bypass] Enroll Mock Voice Signature
         </button>
       )}
 

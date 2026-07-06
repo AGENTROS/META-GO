@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { setJWTToken } from '@/lib/tokenManager';
 
 function recalculateMetrics(state: any) {
   if (!state.identityMetrics) return null;
@@ -243,6 +244,7 @@ export const useIdentityStore = create<IdentityStore>()(
           document.cookie = 'celestial_admin=; Max-Age=0; path=/';
         }
         set(INITIAL_STATE);
+        setJWTToken(null);
       },
 
       hydrateMockData: () => set(state => {

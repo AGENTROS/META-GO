@@ -26,29 +26,80 @@ import type {
 export interface IdentityRegistryInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "approveRecovery"
+      | "getGuardians"
+      | "getRecoveryApprovals"
       | "handleOwners"
+      | "hasApproved"
       | "identities"
+      | "initiateRecovery"
       | "isRegistered"
+      | "recoveryConfigs"
+      | "recoverySessions"
+      | "registerCrossChain"
       | "registerIdentity"
+      | "relayerAddress"
+      | "setupRecovery"
+      | "syncCrossChain"
+      | "syncCrossChainFor"
       | "usedNullifiers"
       | "verifier"
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "IdentityRegistered" | "IdentityUpdated"
+    nameOrSignatureOrTopic:
+      | "CrossChainSyncInitiated"
+      | "IdentityRegistered"
+      | "IdentityUpdated"
+      | "RecoveryApproved"
+      | "RecoveryExecuted"
+      | "RecoverySessionInitiated"
+      | "SocialRecoverySetup"
   ): EventFragment;
 
   encodeFunctionData(
+    functionFragment: "approveRecovery",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getGuardians",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getRecoveryApprovals",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "handleOwners",
     values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "hasApproved",
+    values: [AddressLike, AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "identities",
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "initiateRecovery",
+    values: [AddressLike, BytesLike, AddressLike, string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "isRegistered",
     values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "recoveryConfigs",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "recoverySessions",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "registerCrossChain",
+    values: [AddressLike, string, string]
   ): string;
   encodeFunctionData(
     functionFragment: "registerIdentity",
@@ -64,18 +115,66 @@ export interface IdentityRegistryInterface extends Interface {
     ]
   ): string;
   encodeFunctionData(
+    functionFragment: "relayerAddress",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setupRecovery",
+    values: [AddressLike[], BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "syncCrossChain",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "syncCrossChainFor",
+    values: [AddressLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "usedNullifiers",
     values: [BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "verifier", values?: undefined): string;
 
   decodeFunctionResult(
+    functionFragment: "approveRecovery",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getGuardians",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getRecoveryApprovals",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "handleOwners",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "hasApproved",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "identities", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "initiateRecovery",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "isRegistered",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "recoveryConfigs",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "recoverySessions",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "registerCrossChain",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -83,10 +182,51 @@ export interface IdentityRegistryInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "relayerAddress",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setupRecovery",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "syncCrossChain",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "syncCrossChainFor",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "usedNullifiers",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "verifier", data: BytesLike): Result;
+}
+
+export namespace CrossChainSyncInitiatedEvent {
+  export type InputTuple = [
+    destinationChainSelector: BigNumberish,
+    wallet: AddressLike,
+    did: string,
+    handle: string
+  ];
+  export type OutputTuple = [
+    destinationChainSelector: bigint,
+    wallet: string,
+    did: string,
+    handle: string
+  ];
+  export interface OutputObject {
+    destinationChainSelector: bigint;
+    wallet: string;
+    did: string;
+    handle: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace IdentityRegisteredEvent {
@@ -109,6 +249,76 @@ export namespace IdentityUpdatedEvent {
   export interface OutputObject {
     wallet: string;
     newProofHash: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace RecoveryApprovedEvent {
+  export type InputTuple = [wallet: AddressLike, guardian: AddressLike];
+  export type OutputTuple = [wallet: string, guardian: string];
+  export interface OutputObject {
+    wallet: string;
+    guardian: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace RecoveryExecutedEvent {
+  export type InputTuple = [oldWallet: AddressLike, newWallet: AddressLike];
+  export type OutputTuple = [oldWallet: string, newWallet: string];
+  export interface OutputObject {
+    oldWallet: string;
+    newWallet: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace RecoverySessionInitiatedEvent {
+  export type InputTuple = [
+    wallet: AddressLike,
+    newWallet: AddressLike,
+    passphraseHash: BytesLike
+  ];
+  export type OutputTuple = [
+    wallet: string,
+    newWallet: string,
+    passphraseHash: string
+  ];
+  export interface OutputObject {
+    wallet: string;
+    newWallet: string;
+    passphraseHash: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace SocialRecoverySetupEvent {
+  export type InputTuple = [
+    wallet: AddressLike,
+    guardians: AddressLike[],
+    passphraseHash: BytesLike
+  ];
+  export type OutputTuple = [
+    wallet: string,
+    guardians: string[],
+    passphraseHash: string
+  ];
+  export interface OutputObject {
+    wallet: string;
+    guardians: string[];
+    passphraseHash: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -159,7 +369,27 @@ export interface IdentityRegistry extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  approveRecovery: TypedContractMethod<
+    [_targetIdentity: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  getGuardians: TypedContractMethod<[wallet: AddressLike], [string[]], "view">;
+
+  getRecoveryApprovals: TypedContractMethod<
+    [wallet: AddressLike],
+    [string[]],
+    "view"
+  >;
+
   handleOwners: TypedContractMethod<[arg0: string], [string], "view">;
+
+  hasApproved: TypedContractMethod<
+    [arg0: AddressLike, arg1: AddressLike],
+    [boolean],
+    "view"
+  >;
 
   identities: TypedContractMethod<
     [arg0: AddressLike],
@@ -175,7 +405,42 @@ export interface IdentityRegistry extends BaseContract {
     "view"
   >;
 
+  initiateRecovery: TypedContractMethod<
+    [
+      _oldWallet: AddressLike,
+      _passphraseHash: BytesLike,
+      _newWallet: AddressLike,
+      _newDid: string
+    ],
+    [void],
+    "nonpayable"
+  >;
+
   isRegistered: TypedContractMethod<[wallet: AddressLike], [boolean], "view">;
+
+  recoveryConfigs: TypedContractMethod<
+    [arg0: AddressLike],
+    [[string, boolean] & { passphraseHash: string; active: boolean }],
+    "view"
+  >;
+
+  recoverySessions: TypedContractMethod<
+    [arg0: AddressLike],
+    [
+      [string, string, boolean] & {
+        newWallet: string;
+        newDid: string;
+        active: boolean;
+      }
+    ],
+    "view"
+  >;
+
+  registerCrossChain: TypedContractMethod<
+    [_wallet: AddressLike, _handle: string, _did: string],
+    [void],
+    "nonpayable"
+  >;
 
   registerIdentity: TypedContractMethod<
     [
@@ -192,6 +457,26 @@ export interface IdentityRegistry extends BaseContract {
     "nonpayable"
   >;
 
+  relayerAddress: TypedContractMethod<[], [string], "view">;
+
+  setupRecovery: TypedContractMethod<
+    [_guardians: AddressLike[], _passphraseHash: BytesLike],
+    [void],
+    "nonpayable"
+  >;
+
+  syncCrossChain: TypedContractMethod<
+    [_destinationChainSelector: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
+  syncCrossChainFor: TypedContractMethod<
+    [_user: AddressLike, _destinationChainSelector: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   usedNullifiers: TypedContractMethod<[arg0: BytesLike], [boolean], "view">;
 
   verifier: TypedContractMethod<[], [string], "view">;
@@ -201,8 +486,24 @@ export interface IdentityRegistry extends BaseContract {
   ): T;
 
   getFunction(
+    nameOrSignature: "approveRecovery"
+  ): TypedContractMethod<[_targetIdentity: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "getGuardians"
+  ): TypedContractMethod<[wallet: AddressLike], [string[]], "view">;
+  getFunction(
+    nameOrSignature: "getRecoveryApprovals"
+  ): TypedContractMethod<[wallet: AddressLike], [string[]], "view">;
+  getFunction(
     nameOrSignature: "handleOwners"
   ): TypedContractMethod<[arg0: string], [string], "view">;
+  getFunction(
+    nameOrSignature: "hasApproved"
+  ): TypedContractMethod<
+    [arg0: AddressLike, arg1: AddressLike],
+    [boolean],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "identities"
   ): TypedContractMethod<
@@ -219,8 +520,47 @@ export interface IdentityRegistry extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "initiateRecovery"
+  ): TypedContractMethod<
+    [
+      _oldWallet: AddressLike,
+      _passphraseHash: BytesLike,
+      _newWallet: AddressLike,
+      _newDid: string
+    ],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "isRegistered"
   ): TypedContractMethod<[wallet: AddressLike], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "recoveryConfigs"
+  ): TypedContractMethod<
+    [arg0: AddressLike],
+    [[string, boolean] & { passphraseHash: string; active: boolean }],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "recoverySessions"
+  ): TypedContractMethod<
+    [arg0: AddressLike],
+    [
+      [string, string, boolean] & {
+        newWallet: string;
+        newDid: string;
+        active: boolean;
+      }
+    ],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "registerCrossChain"
+  ): TypedContractMethod<
+    [_wallet: AddressLike, _handle: string, _did: string],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "registerIdentity"
   ): TypedContractMethod<
@@ -238,12 +578,43 @@ export interface IdentityRegistry extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "relayerAddress"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "setupRecovery"
+  ): TypedContractMethod<
+    [_guardians: AddressLike[], _passphraseHash: BytesLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "syncCrossChain"
+  ): TypedContractMethod<
+    [_destinationChainSelector: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "syncCrossChainFor"
+  ): TypedContractMethod<
+    [_user: AddressLike, _destinationChainSelector: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "usedNullifiers"
   ): TypedContractMethod<[arg0: BytesLike], [boolean], "view">;
   getFunction(
     nameOrSignature: "verifier"
   ): TypedContractMethod<[], [string], "view">;
 
+  getEvent(
+    key: "CrossChainSyncInitiated"
+  ): TypedContractEvent<
+    CrossChainSyncInitiatedEvent.InputTuple,
+    CrossChainSyncInitiatedEvent.OutputTuple,
+    CrossChainSyncInitiatedEvent.OutputObject
+  >;
   getEvent(
     key: "IdentityRegistered"
   ): TypedContractEvent<
@@ -258,8 +629,47 @@ export interface IdentityRegistry extends BaseContract {
     IdentityUpdatedEvent.OutputTuple,
     IdentityUpdatedEvent.OutputObject
   >;
+  getEvent(
+    key: "RecoveryApproved"
+  ): TypedContractEvent<
+    RecoveryApprovedEvent.InputTuple,
+    RecoveryApprovedEvent.OutputTuple,
+    RecoveryApprovedEvent.OutputObject
+  >;
+  getEvent(
+    key: "RecoveryExecuted"
+  ): TypedContractEvent<
+    RecoveryExecutedEvent.InputTuple,
+    RecoveryExecutedEvent.OutputTuple,
+    RecoveryExecutedEvent.OutputObject
+  >;
+  getEvent(
+    key: "RecoverySessionInitiated"
+  ): TypedContractEvent<
+    RecoverySessionInitiatedEvent.InputTuple,
+    RecoverySessionInitiatedEvent.OutputTuple,
+    RecoverySessionInitiatedEvent.OutputObject
+  >;
+  getEvent(
+    key: "SocialRecoverySetup"
+  ): TypedContractEvent<
+    SocialRecoverySetupEvent.InputTuple,
+    SocialRecoverySetupEvent.OutputTuple,
+    SocialRecoverySetupEvent.OutputObject
+  >;
 
   filters: {
+    "CrossChainSyncInitiated(uint64,address,string,string)": TypedContractEvent<
+      CrossChainSyncInitiatedEvent.InputTuple,
+      CrossChainSyncInitiatedEvent.OutputTuple,
+      CrossChainSyncInitiatedEvent.OutputObject
+    >;
+    CrossChainSyncInitiated: TypedContractEvent<
+      CrossChainSyncInitiatedEvent.InputTuple,
+      CrossChainSyncInitiatedEvent.OutputTuple,
+      CrossChainSyncInitiatedEvent.OutputObject
+    >;
+
     "IdentityRegistered(address,string,string)": TypedContractEvent<
       IdentityRegisteredEvent.InputTuple,
       IdentityRegisteredEvent.OutputTuple,
@@ -280,6 +690,50 @@ export interface IdentityRegistry extends BaseContract {
       IdentityUpdatedEvent.InputTuple,
       IdentityUpdatedEvent.OutputTuple,
       IdentityUpdatedEvent.OutputObject
+    >;
+
+    "RecoveryApproved(address,address)": TypedContractEvent<
+      RecoveryApprovedEvent.InputTuple,
+      RecoveryApprovedEvent.OutputTuple,
+      RecoveryApprovedEvent.OutputObject
+    >;
+    RecoveryApproved: TypedContractEvent<
+      RecoveryApprovedEvent.InputTuple,
+      RecoveryApprovedEvent.OutputTuple,
+      RecoveryApprovedEvent.OutputObject
+    >;
+
+    "RecoveryExecuted(address,address)": TypedContractEvent<
+      RecoveryExecutedEvent.InputTuple,
+      RecoveryExecutedEvent.OutputTuple,
+      RecoveryExecutedEvent.OutputObject
+    >;
+    RecoveryExecuted: TypedContractEvent<
+      RecoveryExecutedEvent.InputTuple,
+      RecoveryExecutedEvent.OutputTuple,
+      RecoveryExecutedEvent.OutputObject
+    >;
+
+    "RecoverySessionInitiated(address,address,bytes32)": TypedContractEvent<
+      RecoverySessionInitiatedEvent.InputTuple,
+      RecoverySessionInitiatedEvent.OutputTuple,
+      RecoverySessionInitiatedEvent.OutputObject
+    >;
+    RecoverySessionInitiated: TypedContractEvent<
+      RecoverySessionInitiatedEvent.InputTuple,
+      RecoverySessionInitiatedEvent.OutputTuple,
+      RecoverySessionInitiatedEvent.OutputObject
+    >;
+
+    "SocialRecoverySetup(address,address[],bytes32)": TypedContractEvent<
+      SocialRecoverySetupEvent.InputTuple,
+      SocialRecoverySetupEvent.OutputTuple,
+      SocialRecoverySetupEvent.OutputObject
+    >;
+    SocialRecoverySetup: TypedContractEvent<
+      SocialRecoverySetupEvent.InputTuple,
+      SocialRecoverySetupEvent.OutputTuple,
+      SocialRecoverySetupEvent.OutputObject
     >;
   };
 }

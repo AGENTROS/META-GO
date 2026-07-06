@@ -38,9 +38,24 @@ export default function BillingPage() {
     if (address) {
       fetch(`${backend}/api/billing/subscription/${address}`).then(r => r.json()).then(d => setCurrentPlan(d.plan || 'free')).catch(() => {});
     }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('simulated') === 'true') {
+        const plan = params.get('plan');
+        if (plan) {
+          toast.success(`Simulated subscription to ${plan.toUpperCase()} activated!`);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
   }, [address]);
 
   async function subscribe(planId: string) {
+    if (!address) {
+      toast.error('Please connect your wallet first.');
+      return;
+    }
     setLoading(true);
     const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     try {
@@ -57,7 +72,9 @@ export default function BillingPage() {
         toast.success('Sales team will contact you within 24h');
       } else if (data.type === 'checkout_redirect') {
         toast.success(`Redirecting to checkout for ${planId.toUpperCase()}...`);
-        // In production: window.location.href = data.checkoutUrl
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+        }
       }
     } catch (e) {
       toast.error('Checkout failed');

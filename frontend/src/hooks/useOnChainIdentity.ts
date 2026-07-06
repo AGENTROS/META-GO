@@ -1,30 +1,75 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useEffect } from 'react';
+import { useAccount, useReadContract } from 'wagmi';
 import { useIdentityStore } from '@/store/useIdentityStore';
+import { CONTRACTS } from '@/lib/wagmi.config';
 
 export function useOnChainIdentity() {
   const { address } = useAccount();
-  const [isLoading, setIsLoading] = useState(false);
-  const { setDID, hydrateMockData } = useIdentityStore();
+  const { setDID, setHandle, hydrateMockData } = useIdentityStore();
 
-  const refresh = useCallback(async () => {
-    if (!address) return;
-    setIsLoading(true);
-    try {
-      const did = `did:metago:${address.toLowerCase()}`;
-      const fullDID = `did:metago:polygon:${address.toLowerCase()}`;
-      setDID(did, fullDID);
-      hydrateMockData();
-      await new Promise(r => setTimeout(r, 700));
-    } finally {
-      setIsLoading(false);
+  const { data: identityData, isLoading, refetch } = useReadContract({
+    address: CONTRACTS.IDENTITY_REGISTRY as `0x${string}`,
+    abi: [
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "name": "identities",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "handle",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "did",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "proofHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "active",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ],
+    functionName: 'identities',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
     }
-  }, [address, setDID, hydrateMockData]);
+  });
 
   useEffect(() => {
-    if (address) refresh();
-  }, [address, refresh]);
+    if (address && identityData) {
+      const [handle, didVal, proofHash, timestamp, active] = identityData as [string, string, string, bigint, boolean];
+      if (active) {
+        setHandle(handle);
+        setDID(didVal, `did:metago:polygon:${address.toLowerCase()}`);
+      } else {
+        setDID(`did:metago:${address.toLowerCase()}`, `did:metago:polygon:${address.toLowerCase()}`);
+      }
+      hydrateMockData();
+    }
+  }, [address, identityData, setDID, setHandle, hydrateMockData]);
 
-  return { isLoading, refresh };
+  return { isLoading, refresh: refetch };
 }

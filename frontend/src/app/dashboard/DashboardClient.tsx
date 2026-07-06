@@ -8,7 +8,11 @@ import { EngramVisualizer3D } from '@/components/dashboard/EngramVisualizer3D';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import { IdentityRadar } from '@/components/dashboard/IdentityRadar';
 import { QuantumTimeline } from '@/components/dashboard/QuantumTimeline';
-import { VRMAvatarSlot } from '@/components/dashboard/VRMAvatarSlot';
+import dynamic from 'next/dynamic';
+const VRMAvatarSlot = dynamic(
+  () => import('@/components/dashboard/VRMAvatarSlot').then(mod => mod.VRMAvatarSlot),
+  { ssr: false }
+);
 import CommandRail from '@/components/dashboard/CommandRail';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { HoloButton } from '@/components/ui/HoloButton';
@@ -19,6 +23,8 @@ import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { useOnChainIdentity } from '@/hooks/useOnChainIdentity';
+import { authenticatedFetch as fetch } from '@/lib/api';
+
 
 export function CCIPBridgeTracker() {
   const { walletAddress, handle, did, addSBT } = useIdentityStore();
@@ -375,7 +381,6 @@ export function AISecurityMonitor() {
   );
 }
 
-
 // ===========================================================================
 // DYNAMIC 3D HOLOGRAPHIC PASSPORT CARD
 // ===========================================================================
@@ -418,35 +423,37 @@ export function HolographicPassportCard() {
 
   return (
     <div 
-      className="relative w-full cursor-pointer select-none rounded-[24px] p-0.5"
+      className="relative w-full cursor-pointer select-none rounded-[24px] p-[1.5px] transition-all duration-300 hover:scale-[1.01]"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      style={{ perspective: '1000px' }}
+      style={{ 
+        perspective: '1000px',
+        background: `radial-gradient(circle at ${tilt.glintX}% ${tilt.glintY}%, rgba(59, 130, 246, 0.45) 0%, rgba(139, 92, 246, 0.2) 40%, transparent 70%)`
+      }}
     >
       <div 
-        className="relative w-full rounded-[22px] bg-gradient-to-br from-zinc-900/90 via-zinc-950/95 to-zinc-900/90 border border-zinc-800 p-6 flex flex-col justify-between overflow-hidden shadow-2xl hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-shadow duration-300 min-h-[420px]"
+        className="relative w-full rounded-[22px] bg-zinc-950/90 backdrop-blur-xl border border-zinc-900/80 p-6 flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-100 min-h-[420px]"
         style={{
           transformStyle: 'preserve-3d',
           transform: `rotateX(${tilt.rotateX}deg) rotateY(${tilt.rotateY}deg)`,
-          transition: 'transform 0.1s ease-out',
         }}
       >
-        {/* glint */}
+        {/* Iridescent holographic foil glint */}
         <div 
-          className="absolute inset-0 pointer-events-none opacity-25 mix-blend-color-dodge rounded-[22px] transition-opacity duration-300 hover:opacity-40"
+          className="absolute inset-0 pointer-events-none opacity-20 mix-blend-color-dodge rounded-[22px] transition-opacity duration-300 hover:opacity-35"
           style={{
-            background: `radial-gradient(circle at ${tilt.glintX}% ${tilt.glintY}%, rgba(255,255,255,0.7) 0%, transparent 50%)`,
+            background: `linear-gradient(${135 + tilt.rotateY * 2.5}deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.015) 30%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.015) 70%, rgba(255, 255, 255, 0) 100%), radial-gradient(circle at ${tilt.glintX}% ${tilt.glintY}%, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 35%, transparent 75%)`,
           }}
         />
 
         {/* header */}
         <div className="flex justify-between items-start z-10" style={{ transform: 'translateZ(25px)' }}>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-blue-600/10 border border-blue-600/30 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full bg-blue-600/10 border border-blue-600/30 flex items-center justify-center animate-pulse">
               <span className="text-blue-500 text-[10px] font-sans font-bold">M</span>
             </div>
             <div>
-              <p className="text-[10px] font-mono font-bold tracking-widest text-zinc-400">META GO</p>
+              <p className="text-[10px] font-mono font-bold tracking-widest text-zinc-300">META GO</p>
               <p className="text-[7px] font-mono text-zinc-500 uppercase">Sovereign Passport</p>
             </div>
           </div>
@@ -489,7 +496,7 @@ export function HolographicPassportCard() {
               );
             })}
             {soulboundTokens.length === 0 && (
-              <div className="w-7 h-7 rounded-xl border border-dashed border-zinc-850 flex items-center justify-center text-[10px] text-zinc-700" title="No SBTs claimed">
+              <div className="w-7 h-7 rounded-xl border border-dashed border-zinc-800 flex items-center justify-center text-[10px] text-zinc-700" title="No SBTs claimed">
                 Ø
               </div>
             )}
@@ -499,26 +506,33 @@ export function HolographicPassportCard() {
           <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-10" style={{ transform: 'translateZ(30px)' }}>
             <div className="relative w-11 h-11 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90">
-                <circle cx="22" cy="22" r="18" stroke="currentColor" className="text-zinc-850" strokeWidth="2.5" fill="transparent" />
-                <circle cx="22" cy="22" r="18" stroke="currentColor" className="text-blue-500 shadow-glow" strokeWidth="2.5" fill="transparent"
+                <defs>
+                  <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="1.8" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                <circle cx="22" cy="22" r="18" stroke="currentColor" className="text-zinc-900" strokeWidth="2.5" fill="transparent" />
+                <circle cx="22" cy="22" r="18" stroke="currentColor" className="text-blue-500" strokeWidth="2.5" fill="transparent"
+                  filter="url(#glow-filter)"
                   strokeDasharray={2 * Math.PI * 18}
                   strokeDashoffset={2 * Math.PI * 18 * (1 - trustScore / 100)}
                 />
               </svg>
               <span className="absolute text-[9px] font-mono font-bold text-zinc-200">{trustScore}</span>
             </div>
-            <span className="text-[6px] font-mono uppercase text-zinc-500 tracking-wider">TRUST</span>
+            <span className="text-[6px] font-mono uppercase text-zinc-550 tracking-wider">TRUST</span>
           </div>
         </div>
 
         {/* footer */}
         <div className="space-y-2 z-10" style={{ transform: 'translateZ(25px)' }}>
-          <div className="flex justify-between items-center border-t border-zinc-800/80 pt-3">
+          <div className="flex justify-between items-center border-t border-zinc-900/80 pt-3">
             <div>
-              <p className="text-[8px] font-mono text-zinc-550 uppercase">Identity Identifier</p>
+              <p className="text-[8px] font-mono text-zinc-500 uppercase">Identity Identifier</p>
               {handle && <p className="text-xs font-sans font-bold text-zinc-200">@{handle}</p>}
             </div>
-            <span className="text-[8px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-850 text-blue-400 font-semibold tracking-wider uppercase">
+            <span className="text-[8px] font-mono px-2 py-0.5 rounded-md bg-zinc-900/80 border border-zinc-800 text-blue-400 font-semibold tracking-wider uppercase">
               LEVEL {Math.floor(trustScore / 20)}
             </span>
           </div>
@@ -526,11 +540,11 @@ export function HolographicPassportCard() {
           {did && (
             <div 
               onClick={copyDID}
-              className="p-2 bg-zinc-950/60 hover:bg-zinc-900/80 rounded-xl border border-zinc-850/60 flex items-center justify-between group/did transition-colors cursor-pointer"
+              className="p-2 bg-zinc-900/40 hover:bg-zinc-900/70 rounded-xl border border-zinc-900 flex items-center justify-between group/did transition-colors cursor-pointer"
             >
               <div className="flex flex-col min-w-0">
-                <span className="text-[6px] font-mono text-zinc-500 uppercase">DID Document Address</span>
-                <span className="text-[8px] font-mono text-zinc-400 truncate">{did}</span>
+                <span className="text-[6px] font-mono text-zinc-550 uppercase">DID Document Address</span>
+                <span className="text-[8px] font-mono text-zinc-450 truncate">{did}</span>
               </div>
               <div className="text-zinc-500 group-hover/did:text-blue-500 transition-colors ml-1.5">
                 {copied ? <Check size={10} /> : <Copy size={10} />}
@@ -1064,6 +1078,26 @@ export default function DashboardClient() {
   const { isLoading, refresh } = useOnChainIdentity();
   const [copied, setCopied] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+  const [activeLogTab, setActiveLogTab] = useState<'system' | 'biometrics'>('system');
+
+  useEffect(() => {
+    async function loadLogs() {
+      try {
+        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+        const res = await fetch(`${backend}/api/user/me`, { credentials: 'include' }).then(r => r.json());
+        if (res.authenticated && res.biometricSecurityLogs) {
+          setSecurityLogs([...res.biometricSecurityLogs].reverse());
+        }
+      } catch (e) {
+        console.warn("Failed to load security logs:", e);
+      }
+    }
+    if (isMounted) {
+      loadLogs();
+    }
+  }, [address, isMounted]);
+
   const isWrongChain = chainId ? !(SUPPORTED_CHAIN_IDS as number[]).includes(chainId) : false;
 
   const hasEnterpriseSBT = soulboundTokens.some(t => t.domain === 'ENTERPRISE');
@@ -1130,7 +1164,7 @@ export default function DashboardClient() {
           </div>
 
           <div className="flex gap-3">
-            <HoloButton variant="ghost" size="sm" onClick={refresh} loading={isLoading} data-testid="refresh-identity-btn">
+            <HoloButton variant="ghost" size="sm" onClick={() => refresh()} loading={isLoading} data-testid="refresh-identity-btn">
               <Zap size={14} className={isLoading ? 'animate-pulse' : ''} />
               Refresh Identity
             </HoloButton>
@@ -1219,15 +1253,76 @@ export default function DashboardClient() {
             </div>
 
             <GlassCard className="p-6 h-[400px] flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-[10px] font-mono text-zinc-450 uppercase tracking-widest">Security Log</p>
+              <div className="flex items-center justify-between mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setActiveLogTab('system')}
+                    className={`text-[10px] font-mono uppercase tracking-widest transition-all ${
+                      activeLogTab === 'system' 
+                        ? 'text-blue-500 font-bold border-b border-blue-500 pb-1' 
+                        : 'text-zinc-450 hover:text-zinc-700 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    System Feed
+                  </button>
+                  <button 
+                    onClick={() => setActiveLogTab('biometrics')}
+                    className={`text-[10px] font-mono uppercase tracking-widest transition-all ${
+                      activeLogTab === 'biometrics' 
+                        ? 'text-blue-500 font-bold border-b border-blue-500 pb-1' 
+                        : 'text-zinc-450 hover:text-zinc-700 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    Biometric Audits
+                  </button>
+                </div>
                 <div className="flex gap-2 items-center">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[8px] font-mono text-emerald-500 uppercase tracking-wider">Live Sync</span>
                 </div>
               </div>
               <div className="flex-1 overflow-hidden">
-                <WidgetErrorBoundary name="Feed"><ActivityFeed /></WidgetErrorBoundary>
+                {activeLogTab === 'system' ? (
+                  <WidgetErrorBoundary name="Feed"><ActivityFeed /></WidgetErrorBoundary>
+                ) : (
+                  securityLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-500 py-10 font-mono text-[10px]">
+                      <AlertTriangle className="text-zinc-650 mb-2" size={16} />
+                      NO VERIFICATION ATTEMPTS RECORDED
+                    </div>
+                  ) : (
+                    <div className="h-full overflow-y-auto pr-1 space-y-3 font-mono text-[9px]">
+                      {securityLogs.map((log, idx) => (
+                        <div key={idx} className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-950/20 space-y-2 text-left">
+                          <div className="flex justify-between items-center border-b border-zinc-250 dark:border-zinc-850 pb-1.5">
+                            <span className="text-[8px] text-zinc-500">{new Date(log.timestamp).toLocaleString()}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                              log.riskLevel === 'LOW RISK' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              log.riskLevel === 'MEDIUM RISK' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                              'bg-red-500/10 text-red-500 border border-red-500/20'
+                            }`}>
+                              {log.riskLevel} ({log.trustScore}%)
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-[8px] text-zinc-400">
+                            <div className="space-y-0.5">
+                              <p className="text-zinc-500 font-bold uppercase text-[7px]">Face Analytics</p>
+                              <p>Match Similarity: {log.face.match?.toFixed(1)}%</p>
+                              <p>Liveness Rating: {log.face.liveness?.toFixed(1)}%</p>
+                              <p>Deepfake Risk: {log.face.deepfakeRisk?.toFixed(1)}%</p>
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-zinc-500 font-bold uppercase text-[7px]">Voice MFA</p>
+                              <p>Voiceprint Match: {log.voice.match?.toFixed(1)}%</p>
+                              <p>Anti-Spoof Risk: {log.voice.spoofRisk?.toFixed(1)}%</p>
+                              <p className="truncate">Speech STT: "{log.voice.transcription || 'N/A'}"</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
               </div>
             </GlassCard>
           </div>

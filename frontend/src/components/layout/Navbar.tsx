@@ -22,7 +22,7 @@ export function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  const isAdmin = typeof document !== 'undefined' && document.cookie.includes('celestial_admin');
+  const isAdmin = mounted && typeof document !== 'undefined' && document.cookie.includes('celestial_admin');
 
   useEffect(() => {
     setMounted(true);
@@ -32,6 +32,12 @@ export function Navbar() {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    setAvatarOpen(false);
+    setNotifsOpen(false);
+    setMobileOpen(false);
+  }, [pathname]);
 
   function handleLogout() {
     disconnect();
@@ -115,7 +121,7 @@ export function Navbar() {
                       { icon: Shield, label: 'Security Center', href: '/security' },
                       ...(isAdmin ? [{ icon: BarChart3, label: 'Admin Panel', href: '/admin' }] : []),
                     ].map(item => (
-                      <Link key={item.href} href={item.href} onClick={() => setAvatarOpen(false)} data-testid={`menu-${item.label.toLowerCase().replace(' ', '-')}`}
+                      <Link key={item.href} href={item.href} onClick={() => setTimeout(() => setAvatarOpen(false), 0)} data-testid={`menu-${item.label.toLowerCase().replace(' ', '-')}`}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:text-blue-600 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                         <item.icon size={14} />{item.label}
                       </Link>

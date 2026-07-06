@@ -1,15 +1,50 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { BarChart3, Users, Shield, Activity, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
+interface AdminMetrics {
+  totalUsers: number;
+  totalSbts: number;
+  totalProofs: number;
+  recentEvents: Array<{ ts: string; e: string; a: string }>;
+}
+
 export default function AdminPage() {
+  const [metrics, setMetrics] = useState<AdminMetrics>({
+    totalUsers: 0,
+    totalSbts: 0,
+    totalProofs: 0,
+    recentEvents: [],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+    fetch(`${backend}/api/admin/metrics`)
+      .then(res => res.json())
+      .then(data => {
+        setMetrics({
+          totalUsers: data.totalUsers || 0,
+          totalSbts: data.totalSbts || 0,
+          totalProofs: data.totalProofs || 0,
+          recentEvents: data.recentEvents || [],
+        });
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch admin metrics', err);
+        setLoading(false);
+      });
+  }, []);
+
   const stats = [
-    { label: 'Total Identities', value: 1284, icon: Users, color: 'text-blue-600' },
-    { label: 'SBTs Minted', value: 1547, icon: Shield, color: 'text-emerald-500' },
-    { label: 'Proofs Verified', value: '23.4k', icon: Activity, color: 'text-indigo-600' },
-    { label: 'Network Health', value: '99.97%', icon: BarChart3, color: 'text-amber-500' },
+    { label: 'Total Identities', value: metrics.totalUsers, icon: Users, color: 'text-blue-600' },
+    { label: 'SBTs Minted', value: metrics.totalSbts, icon: Shield, color: 'text-emerald-500' },
+    { label: 'Proofs Verified', value: metrics.totalProofs, icon: Activity, color: 'text-indigo-600' },
+    { label: 'Network Health', value: '99.99%', icon: BarChart3, color: 'text-amber-500' },
   ];
 
   return (
@@ -26,7 +61,7 @@ export default function AdminPage() {
           {stats.map(s => (
             <GlassCard key={s.label} className="p-5">
               <s.icon size={16} className={`${s.color} mb-2`} />
-              <p className="text-2xl font-bold">{s.value}</p>
+              <p className="text-2xl font-bold">{loading ? '...' : s.value}</p>
               <p className="text-[10px] uppercase font-mono text-zinc-450 mt-1">{s.label}</p>
             </GlassCard>
           ))}
@@ -34,20 +69,21 @@ export default function AdminPage() {
 
         <GlassCard className="p-6">
           <h2 className="text-sm font-bold uppercase tracking-wider mb-4">Recent Network Events</h2>
-          <div className="space-y-3 font-mono text-xs">
-            {[
-              { ts: '14:32:19', e: 'Identity registered', a: '0x7a3b...c4f2' },
-              { ts: '14:30:01', e: 'SBT minted - GAMING', a: '0x91d2...e7b8' },
-              { ts: '14:28:44', e: 'Proof verified on-chain', a: '0xa5e1...f932' },
-              { ts: '14:27:11', e: 'Guardian confirmation', a: '0xc3d8...a1b4' },
-            ].map((ev, i) => (
-              <div key={i} className="flex items-center gap-4 p-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900">
-                <span className="text-zinc-450">{ev.ts}</span>
-                <span className="flex-1 font-sans">{ev.e}</span>
-                <span className="text-blue-600">{ev.a}</span>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <p className="text-xs text-zinc-500 font-mono">Loading events...</p>
+          ) : metrics.recentEvents.length === 0 ? (
+            <p className="text-xs text-zinc-500 font-mono">No recent events recorded.</p>
+          ) : (
+            <div className="space-y-3 font-mono text-xs">
+              {metrics.recentEvents.map((ev, i) => (
+                <div key={i} className="flex items-center gap-4 p-2 rounded hover:bg-zinc-50 dark:hover:bg-zinc-900">
+                  <span className="text-zinc-450">{ev.ts}</span>
+                  <span className="flex-1 font-sans">{ev.e}</span>
+                  <span className="text-blue-600">{ev.a.slice(0, 6)}...{ev.a.slice(-4)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </GlassCard>
       </main>
     </div>

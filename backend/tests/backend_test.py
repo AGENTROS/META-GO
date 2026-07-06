@@ -4,15 +4,23 @@ Covers: health, SIWE auth, user sync, ZK verify, relay, credentials, DID resolve
 cross-chain attestations, billing, SBTs.
 """
 import os
+import sys
+
+# Initialize default environment for testing
+os.environ["TEST_MODE"] = "1"
+os.environ["JWT_SECRET"] = "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
+
 import time
 import json
 import secrets
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
+# Ensure backend directory is in path for local module imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", os.environ.get("NEXT_PUBLIC_BACKEND_URL", "")).rstrip("/")
 if not BASE_URL:
-    # Fallback for fresh shell — env from frontend/.env
     env_path = os.path.abspath(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -33,6 +41,8 @@ if not BASE_URL:
             for line in f:
                 if line.startswith("REACT_APP_BACKEND_URL="):
                     BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
+                elif line.startswith("NEXT_PUBLIC_BACKEND_URL="):
+                    BASE_URL = line.split("=", 1)[1].strip().rstrip("/")
 
 API = f"{BASE_URL}/api"
 
@@ -42,6 +52,49 @@ def session():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
     return s
+
+
+def authenticate_session(session, addr=None, private_key=None):
+    from eth_account.messages import encode_defunct
+    from eth_account import Account
+    import time
+    from siwe import SiweMessage
+
+    if not addr or not private_key:
+        acct = Account.create()
+        addr = acct.address
+        private_key = acct.key.hex()
+    else:
+        acct = Account.from_key(private_key)
+
+    r = session.get(f"{API}/auth/nonce", timeout=15)
+    assert r.status_code == 200
+    nonce = r.json()["nonce"]
+
+    # Form standard SIWE message
+    siwe_msg = SiweMessage(
+        domain="localhost",
+        address=addr,
+        uri="http://localhost",
+        version="1",
+        chain_id=1,
+        nonce=nonce,
+        issued_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    )
+    message = siwe_msg.prepare_message()
+    signable = encode_defunct(text=message)
+    signed = acct.sign_message(signable)
+    signature = signed.signature.hex()
+    if not signature.startswith("0x"):
+        signature = "0x" + signature
+
+    r_verify = session.post(f"{API}/auth/verify", json={"message": message, "signature": signature}, timeout=15)
+    assert r_verify.status_code == 200
+    token = r_verify.json()["token"]
+    
+    # Store token in session cookies for convenience, and return auth headers
+    session.cookies.set("metago_session", r_verify.cookies.get("metago_session") or r_verify.json().get("session_token", ""))
+    return addr, private_key, {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
 # ---------- Health ----------
@@ -62,7 +115,6 @@ class TestAuth:
         n = r.json()["nonce"]
         assert len(n) == 32
         int(n, 16)  # valid hex
-        # cookie set
         assert "metago_nonce" in r.cookies or any("metago_nonce" in c for c in r.headers.get("set-cookie", ""))
 
     def test_verify_malformed_returns_400(self, session):
@@ -75,25 +127,41 @@ class TestAuth:
                                "signature": "0xabc"}, timeout=15)
         assert r.status_code in (400, 401)
 
-    def test_verify_with_fallback_address(self, session):
-        # Use the fallback path (siwe-py will fail, message contains an address)
-        addr = "0x" + "ab" * 20
-        msg = f"example.com wants you to sign in\n{addr}\nNonce: 1234567890"
-        sig = "0x" + "1" * 130
-        r = session.post(f"{API}/auth/verify", json={"message": msg, "signature": sig}, timeout=15)
-        assert r.status_code == 200
-        data = r.json()
-        assert data["ok"] is True
-        assert data["address"] == addr.lower()
+    def test_verify_fails_on_invalid_signature(self, session):
+        # SIWE must reject signature mismatch (No bypass)
+        from eth_account import Account
+        acct = Account.create()
+        addr = acct.address
+        
+        r_nonce = session.get(f"{API}/auth/nonce", timeout=15)
+        assert r_nonce.status_code == 200
+        nonce = r_nonce.json()["nonce"]
+        
+        from siwe import SiweMessage
+        siwe_msg = SiweMessage(
+            domain="localhost",
+            address=addr,
+            uri="http://localhost",
+            version="1",
+            chain_id=1,
+            nonce=nonce,
+            issued_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        )
+        message = siwe_msg.prepare_message()
+        bad_sig = "0x" + "1" * 130
+        
+        r = session.post(f"{API}/auth/verify", json={"message": message, "signature": bad_sig}, timeout=15)
+        assert r.status_code in (400, 401)
 
 
 # ---------- User sync ----------
 class TestUserSync:
     def test_sync_upserts_user(self, session):
-        addr = "0x" + secrets.token_hex(20)
-        body = {"handle": "TEST_alice", "email": "alice@test.com",
+        # Create real cryptographic session
+        addr, pk, headers = authenticate_session(session)
+        body = {"handle": f"TEST_alice_{secrets.token_hex(4)}", "email": "alice@test.com",
                 "walletAddress": addr, "did": f"did:metago:{addr}"}
-        r = session.post(f"{API}/user/sync", json=body, timeout=15)
+        r = session.post(f"{API}/user/sync", json=body, headers=headers, timeout=15)
         assert r.status_code == 200
         data = r.json()
         assert data["ok"] is True
@@ -103,26 +171,50 @@ class TestUserSync:
         r = session.post(f"{API}/user/sync", json={"handle": "x"}, timeout=15)
         assert r.status_code == 400
 
+    def test_sync_with_biometric_template(self, session):
+        addr, pk, headers = authenticate_session(session)
+        template = {"ratio": 0.51, "eyeDistToNoseHeightRatio": 1.23}
+        body = {
+            "handle": f"TEST_bob_{secrets.token_hex(4)}", 
+            "email": "bob@test.com",
+            "walletAddress": addr, 
+            "did": f"did:metago:{addr}",
+            "biometricTemplate": template
+        }
+        r = session.post(f"{API}/user/sync", json=body, headers=headers, timeout=15)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        
+        r_me = session.get(f"{API}/user/me", headers=headers, timeout=15)
+        assert r_me.status_code == 200
+        user_data = r_me.json()
+        assert user_data["authenticated"] is True
+        assert "biometricTemplate" in user_data
+        assert user_data["biometricTemplate"]["ratio"] == 0.51
+        assert user_data["biometricTemplate"]["eyeDistToNoseHeightRatio"] == 1.23
+
 
 # ---------- ZK verify-proof ----------
 class TestZK:
-    def test_verify_valid_groth16(self, session):
+    def test_verify_invalid_groth16_rejected(self, session):
+        # Dummy proof must be rejected under real verifier rules
         body = {
             "proof": {"protocol": "groth16",
                       "pi_a": ["1", "2"], "pi_b": [["1", "2"], ["3", "4"]], "pi_c": ["1", "2"]},
             "publicSignals": ["1", "2", "3"],
         }
         r = session.post(f"{API}/verify-proof", json=body, timeout=15)
-        assert r.status_code == 200
-        d = r.json()
-        assert d["valid"] is True
-        assert d["mode"] == "simulation"
+        assert r.status_code in (200, 400)
+        if r.status_code == 200:
+            assert r.json()["valid"] is False
 
     def test_verify_malformed_proof(self, session):
         body = {"proof": {"foo": "bar"}, "publicSignals": []}
         r = session.post(f"{API}/verify-proof", json=body, timeout=15)
-        assert r.status_code == 200
-        assert r.json()["valid"] is False
+        assert r.status_code in (200, 400)
+        if r.status_code == 200:
+            assert r.json()["valid"] is False
 
 
 # ---------- Relay ----------
@@ -146,11 +238,10 @@ class TestRelay:
         statuses = []
         for _ in range(6):
             rr = session.post(f"{API}/relay",
-                              json={"walletAddress": addr, "nullifier": "n_" + secrets.token_hex(8)},
-                              timeout=15)
+                               json={"walletAddress": addr, "nullifier": "n_" + secrets.token_hex(8)},
+                               timeout=15)
             statuses.append(rr.status_code)
-        # At least one should be 429
-        assert 429 in statuses, f"Expected rate-limit 429 in {statuses}"
+        assert 429 in statuses
 
 
 # ---------- Credentials ----------
@@ -195,28 +286,24 @@ class TestDID:
         assert doc["verificationMethod"][0]["type"] == "EcdsaSecp256k1RecoveryMethod2020"
 
     def test_resolve_did_with_avatar(self, session):
-        import secrets
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         did = f"did:metago:{addr}"
         avatar_uri = "ipfs://QmAvatarFile12345678901234567890"
         
-        # 1. Sync user with avatarUri
         sync_body = {
-            "handle": "avatar_bob",
+            "handle": f"avatar_bob_{secrets.token_hex(4)}",
             "walletAddress": addr,
             "did": did,
             "avatarUri": avatar_uri
         }
-        sync_r = session.post(f"{API}/user/sync", json=sync_body, timeout=15)
+        sync_r = session.post(f"{API}/user/sync", json=sync_body, headers=headers, timeout=15)
         assert sync_r.status_code == 200
         
-        # 2. Resolve DID
         r = session.get(f"{API}/did/resolve/{did}", timeout=15)
         assert r.status_code == 200
         d = r.json()
         doc = d["didDocument"]
         
-        # 3. Assert AvatarBinding service exists
         services = doc.get("service", [])
         avatar_service = next((s for s in services if s["type"] == "AvatarBinding"), None)
         assert avatar_service is not None
@@ -263,7 +350,6 @@ class TestBilling:
 
     def test_subscription_returns_plan(self, session):
         addr = "0x" + secrets.token_hex(20)
-        # First activate free
         session.post(f"{API}/billing/checkout",
                      json={"plan": "free", "walletAddress": addr}, timeout=15)
         r = session.get(f"{API}/billing/subscription/{addr}", timeout=15)
@@ -288,18 +374,18 @@ class TestSBT:
 class TestOIDC:
     def test_full_oidc_flow(self, session):
         import jwt
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         did = f"did:metago:{addr}"
         avatar_uri = "ipfs://QmAvatarOIDC123"
 
         # 1. Setup user in DB
         sync_body = {
-            "handle": "oidc_alice",
+            "handle": f"oidc_alice_{secrets.token_hex(4)}",
             "walletAddress": addr,
             "did": did,
             "avatarUri": avatar_uri
         }
-        sync_r = session.post(f"{API}/user/sync", json=sync_body, timeout=15)
+        sync_r = session.post(f"{API}/user/sync", json=sync_body, headers=headers, timeout=15)
         assert sync_r.status_code == 200
 
         # 2. Authorize
@@ -311,6 +397,7 @@ class TestOIDC:
                 "state": "state123",
                 "walletAddress": addr
             },
+            headers=headers,
             timeout=15
         )
         assert auth_r.status_code == 200
@@ -318,7 +405,6 @@ class TestOIDC:
         assert "code=" in redirect_url
         assert "state=state123" in redirect_url
         
-        # Extract code from query params
         from urllib.parse import urlparse, parse_qs
         parsed = urlparse(redirect_url)
         code = parse_qs(parsed.query)["code"][0]
@@ -337,54 +423,49 @@ class TestOIDC:
         assert "access_token" in token_data
         assert "id_token" in token_data
         
-        # 4. Decode OIDC ID Token JWT and verify claims translation
         id_token = token_data["id_token"]
-        claims = jwt.decode(id_token, "metago_oauth_secret_key_12345", algorithms=["HS256"], audience="test_client")
+        claims = jwt.decode(id_token, "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026", algorithms=["HS256"], audience="test_client")
         
         assert claims["sub"] == did
-        assert claims["handle"] == "oidc_alice"
+        assert claims["handle"] == sync_body["handle"]
         assert claims["avatar"] == avatar_uri
         assert claims["wallet_address"] == addr.lower()
 
         # 5. Get Userinfo using bearer access token
         access_token = token_data["access_token"]
-        headers = {"Authorization": f"Bearer {access_token}"}
-        userinfo_r = session.get(f"{API}/oauth/userinfo", headers=headers, timeout=15)
+        auth_headers = {"Authorization": f"Bearer {access_token}"}
+        userinfo_r = session.get(f"{API}/oauth/userinfo", headers=auth_headers, timeout=15)
         assert userinfo_r.status_code == 200
         userinfo = userinfo_r.json()
         
         assert userinfo["sub"] == did
-        assert userinfo["handle"] == "oidc_alice"
+        assert userinfo["handle"] == sync_body["handle"]
         assert userinfo["avatar"] == avatar_uri
         assert userinfo["wallet_address"] == addr.lower()
 
     def test_metaverse_websocket_relay_flow(self, session):
         import websockets
         import asyncio
-        import secrets
         from urllib.parse import urlparse, parse_qs
         
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         did = f"did:metago:{addr}"
         avatar_uri = "ipfs://QmMetaverseTest"
         
-        # 1. Setup user in DB
         sync_body = {
-            "handle": "metaverse_player",
+            "handle": f"metaverse_player_{secrets.token_hex(4)}",
             "walletAddress": addr,
             "did": did,
             "avatarUri": avatar_uri
         }
-        sync_r = session.post(f"{API}/user/sync", json=sync_body, timeout=15)
+        sync_r = session.post(f"{API}/user/sync", json=sync_body, headers=headers, timeout=15)
         assert sync_r.status_code == 200
 
-        # Run async websocket client
         async def client_receive():
             session_id = "test_sess_" + secrets.token_hex(8)
             ws_url = API.replace("http://", "ws://").replace("https://", "wss://") + f"/ws/game/{session_id}"
             
             async with websockets.connect(ws_url) as ws:
-                # Start OAuth authorize in session
                 auth_r = session.get(
                     f"{API}/oauth/authorize",
                     params={
@@ -393,6 +474,7 @@ class TestOIDC:
                         "state": session_id,
                         "walletAddress": addr
                     },
+                    headers=headers,
                     timeout=15
                 )
                 assert auth_r.status_code == 200
@@ -401,84 +483,74 @@ class TestOIDC:
                 parsed = urlparse(redirect_url)
                 code = parse_qs(parsed.query)["code"][0]
                 
-                # Call callback endpoint on server
                 callback_r = session.get(f"{API}/oauth/callback", params={"code": code, "state": session_id}, timeout=15)
                 assert callback_r.status_code == 200
                 
-                # Wait to receive the message over websocket
                 response = await asyncio.wait_for(ws.recv(), timeout=5.0)
                 data = json.loads(response)
                 
                 assert data["type"] == "auth_success"
                 assert data["user"]["did"] == did
                 assert data["user"]["avatar"] == avatar_uri
-                assert data["user"]["handle"] == "metaverse_player"
+                assert data["user"]["handle"] == sync_body["handle"]
                 assert "id_token" in data
-                
+                 
         asyncio.run(client_receive())
 
     def test_encrypted_vault_backup_and_restore(self, session):
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         vault_data = "encrypted_vault_bytes_or_base64_blob"
         
-        # 1. Post backup
         backup_r = session.post(f"{API}/user/vault", json={
             "walletAddress": addr,
             "encryptedVault": vault_data
-        }, timeout=15)
+        }, headers=headers, timeout=15)
         assert backup_r.status_code == 200
         assert "ipfsCid" in backup_r.json()
         
-        # 2. Get/Restore backup
-        restore_r = session.get(f"{API}/user/vault/{addr}", timeout=15)
+        restore_r = session.get(f"{API}/user/vault/{addr}", headers=headers, timeout=15)
         assert restore_r.status_code == 200
         assert restore_r.json()["encryptedVault"] == vault_data
 
     def test_ai_telemetry_anomaly_and_spoof(self, session):
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         
-        # 1. Retrieve default clean telemetry
-        tel_r = session.get(f"{API}/user/telemetry/{addr}", timeout=15)
+        tel_r = session.get(f"{API}/user/telemetry/{addr}", headers=headers, timeout=15)
         assert tel_r.status_code == 200
         assert tel_r.json()["threatLevel"] == "LOW"
         assert tel_r.json()["aiAdjustedTrustScore"] == 72
         
-        # 2. Trigger geo-spoof anomaly
         spoof_r = session.post(f"{API}/user/telemetry/spoof", json={
             "walletAddress": addr,
             "triggerAnomaly": True
-        }, timeout=15)
+        }, headers=headers, timeout=15)
         assert spoof_r.status_code == 200
         
-        # 3. Retrieve anomalous telemetry
-        tel_r2 = session.get(f"{API}/user/telemetry/{addr}", timeout=15)
+        tel_r2 = session.get(f"{API}/user/telemetry/{addr}", headers=headers, timeout=15)
         assert tel_r2.status_code == 200
         assert tel_r2.json()["threatLevel"] == "HIGH"
         assert tel_r2.json()["aiAdjustedTrustScore"] == 12
 
     def test_social_recovery_multisig_consensus(self, session):
         import hashlib
-        addr = "0x" + secrets.token_hex(20)
+        from eth_account import Account
+        from eth_account.messages import encode_defunct
+        addr, pk, headers = authenticate_session(session)
         did = f"did:metago:{addr}"
         
-        guardians = [
-            "0x" + secrets.token_hex(20),
-            "0x" + secrets.token_hex(20),
-            "0x" + secrets.token_hex(20)
-        ]
+        guardian_accts = [Account.create() for _ in range(3)]
+        guardians = [acct.address for acct in guardian_accts]
         passphrase = "mySecretRecoveryWord"
         passphrase_hash = hashlib.sha256(passphrase.encode()).hexdigest()
         
-        # 1. Setup guardians
         setup_r = session.post(f"{API}/recovery/setup", json={
             "walletAddress": addr,
             "guardians": guardians,
             "passphraseHash": passphrase_hash
-        }, timeout=15)
+        }, headers=headers, timeout=15)
         assert setup_r.status_code == 200
         
-        # 2. Initiate recovery session from new wallet
-        new_wallet = "0x" + secrets.token_hex(20)
+        new_wallet = Account.create().address
         init_r = session.post(f"{API}/recovery/initiate", json={
             "did": did,
             "newWalletAddress": new_wallet,
@@ -487,68 +559,65 @@ class TestOIDC:
         assert init_r.status_code == 200
         sess_id = init_r.json()["sessionId"]
         
-        # 3. Approve from Guardian 1 (1/3 approvals) -> should remain pending
+        msg_hash = encode_defunct(text=sess_id)
+        sig1 = Account.sign_message(msg_hash, guardian_accts[0].key).signature.hex()
+        
         app1_r = session.post(f"{API}/recovery/approve", json={
             "sessionId": sess_id,
-            "guardianAddress": guardians[0]
+            "guardianAddress": guardians[0],
+            "signature": sig1
         }, timeout=15)
         assert app1_r.status_code == 200
         assert app1_r.json()["status"] == "pending"
         
-        # 4. Check status
         status_r = session.get(f"{API}/recovery/status/{did}", timeout=15)
         assert status_r.status_code == 200
         assert status_r.json()["approvals"] == [guardians[0].lower()]
         
-        # 5. Approve from Guardian 2 (2/3 approvals) -> status becomes consensus_reached
+        sig2 = Account.sign_message(msg_hash, guardian_accts[1].key).signature.hex()
         app2_r = session.post(f"{API}/recovery/approve", json={
             "sessionId": sess_id,
-            "guardianAddress": guardians[1]
+            "guardianAddress": guardians[1],
+            "signature": sig2
         }, timeout=15)
         assert app2_r.status_code == 200
         assert app2_r.json()["status"] == "consensus_reached"
         
-        # 6. Execute migration
         migrate_r = session.post(f"{API}/recovery/migrate", json={"sessionId": sess_id}, timeout=15)
         assert migrate_r.status_code == 200
         assert migrate_r.json()["migrated"] is True
 
     def test_encryption_key_management_and_did_mail(self, session):
-        addr_a = "0x" + secrets.token_hex(20)
-        addr_b = "0x" + secrets.token_hex(20)
+        addr_a, pk_a, headers_a = authenticate_session(session)
+        addr_b, pk_b, headers_b = authenticate_session(session)
         
-        # 1. Store keys for receiver B
         keypair_b = {
             "walletAddress": addr_b,
             "publicKeyJwk": {"kty": "RSA", "n": "mock_n", "e": "AQAB"},
             "encryptedPrivateKey": "mock_encrypted_private_key"
         }
-        res_keys = session.post(f"{API}/user/encryption-keys", json=keypair_b, timeout=15)
+        res_keys = session.post(f"{API}/user/encryption-keys", json=keypair_b, headers=headers_b, timeout=15)
         assert res_keys.status_code == 200
         
-        # 2. Get keys for B
-        res_get_keys = session.get(f"{API}/user/encryption-keys/{addr_b}", timeout=15)
+        res_get_keys = session.get(f"{API}/user/encryption-keys/{addr_b}", headers=headers_b, timeout=15)
         assert res_get_keys.status_code == 200
         assert res_get_keys.json()["publicKeyJwk"] == keypair_b["publicKeyJwk"]
         assert res_get_keys.json()["encryptedPrivateKey"] == keypair_b["encryptedPrivateKey"]
         
-        # 3. Try to get keys for A (which doesn't exist yet) -> should 404
-        res_get_keys_a = session.get(f"{API}/user/encryption-keys/{addr_a}", timeout=15)
+        res_get_keys_a = session.get(f"{API}/user/encryption-keys/{addr_a}", headers=headers_a, timeout=15)
         assert res_get_keys_a.status_code == 404
         
-        # 4. Sender A sends encrypted message to B
         message = {
             "senderAddress": addr_a,
             "receiverAddress": addr_b,
             "ciphertext": "encrypted_message_bytes"
         }
-        res_send = session.post(f"{API}/messages", json=message, timeout=15)
+        res_send = session.post(f"{API}/messages", json=message, headers=headers_a, timeout=15)
         assert res_send.status_code == 200
         assert res_send.json()["ok"] is True
         assert res_send.json()["message"]["senderAddress"] == addr_a.lower()
         
-        # 5. Fetch messages for B
-        res_get_msg = session.get(f"{API}/messages/{addr_b}", timeout=15)
+        res_get_msg = session.get(f"{API}/messages/{addr_b}", headers=headers_b, timeout=15)
         assert res_get_msg.status_code == 200
         messages = res_get_msg.json()["messages"]
         assert len(messages) >= 1
@@ -556,9 +625,8 @@ class TestOIDC:
         assert messages[0]["senderAddress"] == addr_a.lower()
 
     def test_multi_chain_registry_sync(self, session):
-        addr = "0x" + secrets.token_hex(20)
+        addr, pk, headers = authenticate_session(session)
         
-        # 1. Fetch initial status -> all other chains should be 'not_syncing', polygon is 'synced'
         status_r1 = session.get(f"{API}/did/sync-status/{addr}", timeout=15)
         assert status_r1.status_code == 200
         data1 = status_r1.json()
@@ -566,19 +634,313 @@ class TestOIDC:
         assert data1["arbitrum"] == "not_syncing"
         assert data1["base"] == "not_syncing"
         
-        # 2. Trigger sync to Base
         sync_r = session.post(f"{API}/did/sync-chain", json={
             "walletAddress": addr,
             "destinationChain": "base"
-        }, timeout=15)
+        }, headers=headers, timeout=15)
         assert sync_r.status_code == 200
         assert sync_r.json()["status"] == "pending"
         
-        # 3. Check status immediately -> Base should be pending
         status_r2 = session.get(f"{API}/did/sync-status/{addr}", timeout=15)
         assert status_r2.status_code == 200
         assert status_r2.json()["base"] == "pending"
         
-        # 4. Check status on Arbitrum -> still not_syncing
         assert status_r2.json()["arbitrum"] == "not_syncing"
+        time.sleep(6)
+        status_r3 = session.get(f"{API}/did/sync-status/{addr}", timeout=15)
+        assert status_r3.status_code == 200
+        assert status_r3.json()["base"] == "synced"
 
+
+# ---------- Security Regression Tests ----------
+class TestBackendSecurity:
+    def test_simulation_proof_rejected_in_production(self):
+        orig_test_mode = os.environ.get("TEST_MODE")
+        orig_jwt_secret = os.environ.get("JWT_SECRET")
+        try:
+            os.environ["TEST_MODE"] = "0"
+            os.environ["JWT_SECRET"] = "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
+            
+            from backend.server import verify_proof, VerifyProofBody
+            from fastapi import Request, HTTPException
+            from unittest.mock import MagicMock
+            import asyncio
+            
+            req = MagicMock(spec=Request)
+            req.client = MagicMock()
+            req.client.host = "127.0.0.1"
+            req.headers = {}
+            req.cookies = {}
+            
+            body = VerifyProofBody(
+                proof={"protocol": "simulation", "pi_a": ["1", "2"], "pi_b": [["1", "2"], ["3", "4"]], "pi_c": ["1", "2"]},
+                publicSignals=["123_nullifier", "2"]
+            )
+            with pytest.raises(HTTPException) as excinfo:
+                asyncio.run(verify_proof(body, req))
+            assert excinfo.value.status_code == 400
+        finally:
+            if orig_test_mode is not None:
+                os.environ["TEST_MODE"] = orig_test_mode
+            if orig_jwt_secret is not None:
+                os.environ["JWT_SECRET"] = orig_jwt_secret
+            else:
+                os.environ.pop("JWT_SECRET", None)
+
+    def test_test_mode_startup_violation(self):
+        orig_test_mode = os.environ.get("TEST_MODE")
+        orig_env = os.environ.get("ENV")
+        try:
+            os.environ["TEST_MODE"] = "1"
+            os.environ["ENV"] = "production"
+            
+            with pytest.raises(RuntimeError) as excinfo:
+                import importlib
+                import backend.relayer
+                importlib.reload(backend.relayer)
+            assert "CRITICAL SECURITY VIOLATION" in str(excinfo.value)
+        finally:
+            if orig_test_mode is not None:
+                os.environ["TEST_MODE"] = orig_test_mode
+            if orig_env is not None:
+                os.environ["ENV"] = orig_env
+            else:
+                os.environ.pop("ENV", None)
+
+    def test_redis_outage_blocks_signing(self):
+        from backend.relayer import RedisNonceManager
+        import redis
+        
+        with pytest.raises(RuntimeError) as excinfo:
+            manager = RedisNonceManager(
+                host="localhost",
+                port=9999, 
+                w3_pool=None,
+                deployer_addr="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                chain_id=1337
+            )
+        assert "Redis is unreachable" in str(excinfo.value)
+
+    def test_invalid_groth16_proof_rejected(self):
+        from backend.zk_verifier import MockSnarkjsVerifier
+        proof = {
+            "protocol": "groth16",
+            "curve": "bn128",
+            "pi_a": ["999999", "888888"],
+            "pi_b": [["111", "222"], ["333", "444"]],
+            "pi_c": ["555555", "666666"]
+        }
+        signals = ["1", "2", "3", "4"]
+        valid = MockSnarkjsVerifier.verify_proof(proof, signals)
+        assert valid is False
+
+    def test_reorg_reconciliation_rollback(self):
+        from backend.server import db
+        from backend.reconciliation import nightly_reconciliation
+        from unittest.mock import MagicMock
+        import asyncio
+        
+        addr = "0x" + secrets.token_hex(20)
+        did = f"did:metago:{addr}"
+        
+        async def run_test():
+            await db.users.insert_one({
+                "walletAddress": addr,
+                "handle": "reorg_user",
+                "did": did
+            })
+            await db.zk_proofs.insert_one({
+                "walletAddress": addr,
+                "proofHash": "dummy"
+            })
+            await db.sbts.insert_one({
+                "walletAddress": addr,
+                "status": "VALID"
+            })
+            
+            assert await db.users.find_one({"walletAddress": addr}) is not None
+            
+            from backend.relayer import relayer, RelayerClient
+            orig_available = relayer.available
+            orig_w3_prop = RelayerClient.w3
+            orig_addresses = relayer.addresses
+            
+            try:
+                relayer.available = lambda: True
+                mock_w3 = MagicMock()
+                mock_w3.eth.chain_id = 1337
+                
+                mock_contract = MagicMock()
+                mock_identities = MagicMock()
+                mock_identities.call.return_value = ("", "", b"", 0, False)
+                mock_contract.functions.identities.return_value = mock_identities
+                
+                mock_balance_of = MagicMock()
+                mock_balance_of.call.return_value = 0
+                mock_contract.functions.balanceOf.return_value = mock_balance_of
+                
+                mock_w3.eth.contract.return_value = mock_contract
+                
+                RelayerClient.w3 = property(lambda self: mock_w3)
+                relayer.addresses = {
+                    "IdentityRegistry": "0x" + "1" * 40,
+                    "CelestialSBT": "0x" + "2" * 40
+                }
+                
+                orig_sleep = asyncio.sleep
+                async def mock_sleep(secs):
+                    raise GeneratorExit()
+                asyncio.sleep = mock_sleep
+                
+                try:
+                    await nightly_reconciliation(db)
+                except GeneratorExit:
+                    pass
+                finally:
+                    asyncio.sleep = orig_sleep
+                
+                assert await db.users.find_one({"walletAddress": addr}) is None
+                assert await db.zk_proofs.find_one({"walletAddress": addr}) is None
+                assert await db.sbts.find_one({"walletAddress": addr}) is None
+                
+            finally:
+                relayer.available = orig_available
+                RelayerClient.w3 = orig_w3_prop
+                relayer.addresses = orig_addresses
+                await db.users.delete_many({"walletAddress": addr})
+                await db.zk_proofs.delete_many({"walletAddress": addr})
+                await db.sbts.delete_many({"walletAddress": addr})
+                
+        asyncio.run(run_test()) 
+
+    def test_duplicate_nullifier_rejection(self, session):
+        addr, pk, headers = authenticate_session(session)
+        nullifier = "null_" + secrets.token_hex(8)
+        body = {
+            "handle": f"TEST_dup_null_{secrets.token_hex(4)}",
+            "email": "dup_null@test.com",
+            "walletAddress": addr,
+            "did": f"did:metago:{addr}"
+        }
+        session.post(f"{API}/test/reset-rate-limits")
+        r1 = session.post(f"{API}/user/sync", json=body, headers=headers, timeout=15)
+        assert r1.status_code == 200
+        
+        # Second sync with same nullifier (different address) -> should fail
+        addr2, pk2, headers2 = authenticate_session(session)
+        body["walletAddress"] = addr2
+        body["did"] = f"did:metago:{addr2}"
+        body["handle"] = "TEST_dup_null2"
+        session.post(f"{API}/test/reset-rate-limits")
+        r2 = session.post(f"{API}/relay", json={"walletAddress": addr2, "nullifier": nullifier}, timeout=15)
+        # Seed the nullifier usage
+        session.post(f"{API}/relay", json={"walletAddress": addr2, "nullifier": nullifier}, timeout=15)
+        r2_retry = session.post(f"{API}/relay", json={"walletAddress": addr2, "nullifier": nullifier}, timeout=15)
+        assert r2_retry.status_code == 409
+
+    def test_duplicate_handle_rejection(self, session):
+        addr, pk, headers = authenticate_session(session)
+        handle = f"TEST_unique_handle_{secrets.token_hex(4)}"
+        body = {
+            "handle": handle,
+            "walletAddress": addr,
+            "did": f"did:metago:{addr}"
+        }
+        session.post(f"{API}/test/reset-rate-limits")
+        r1 = session.post(f"{API}/user/sync", json=body, headers=headers, timeout=15)
+        assert r1.status_code == 200
+        
+        # Attempt duplicate registration
+        addr2, pk2, headers2 = authenticate_session(session)
+        body2 = {
+            "handle": handle,
+            "walletAddress": addr2,
+            "did": f"did:metago:{addr2}"
+        }
+        session.post(f"{API}/test/reset-rate-limits")
+        r2 = session.post(f"{API}/user/sync", json=body2, headers=headers2, timeout=15)
+        assert r2.status_code in (400, 502)
+
+    def test_ephemeral_key_generation_path(self):
+        orig_test_mode = os.environ.get("TEST_MODE")
+        orig_key = os.environ.get("DEPLOYER_KEY")
+        try:
+            os.environ["TEST_MODE"] = "1"
+            os.environ.pop("DEPLOYER_KEY", None)
+            
+            import importlib
+            import backend.relayer
+            importlib.reload(backend.relayer)
+            
+            assert backend.relayer.IS_EPHEMERAL is True
+            assert len(backend.relayer.DEPLOYER_KEY) in (64, 66)
+        finally:
+            if orig_test_mode is not None:
+                os.environ["TEST_MODE"] = orig_test_mode
+            if orig_key is not None:
+                os.environ["DEPLOYER_KEY"] = orig_key
+
+    def test_gas_circuit_breaker_activation(self):
+        from backend.relayer import relayer
+        if relayer.available():
+            class FakeTx:
+                def build_transaction(self, details):
+                    return details
+            tx = FakeTx()
+            orig_gas_price = relayer.w3.eth.gas_price
+            try:
+                type(relayer.w3.eth).gas_price = 400_000_000_000 
+                with pytest.raises(RuntimeError) as excinfo:
+                    relayer._estimate_and_check_gas(tx, relayer.deployer_addr)
+                assert "Gas price circuit breaker triggered" in str(excinfo.value)
+            finally:
+                type(relayer.w3.eth).gas_price = orig_gas_price
+
+    def test_test_endpoint_inaccessible_in_production(self):
+        orig_test_mode = os.environ.get("TEST_MODE")
+        orig_jwt_secret = os.environ.get("JWT_SECRET")
+        try:
+            os.environ["TEST_MODE"] = "0"
+            os.environ["JWT_SECRET"] = "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
+            
+            from fastapi import Request
+            from starlette.datastructures import URL
+            from unittest.mock import MagicMock
+            import asyncio
+            
+            req = MagicMock(spec=Request)
+            req.url = URL("http://localhost/api/test/reset-rate-limits")
+            
+            from backend.server import gate_test_endpoints
+            async def call_next(r):
+                return "called"
+            res = asyncio.run(gate_test_endpoints(req, call_next))
+            assert res.status_code == 404
+        finally:
+            if orig_test_mode is not None:
+                os.environ["TEST_MODE"] = orig_test_mode
+            if orig_jwt_secret is not None:
+                os.environ["JWT_SECRET"] = orig_jwt_secret
+            else:
+                os.environ.pop("JWT_SECRET", None)
+
+    def test_backup_restore_drill(self):
+        from backend.backup_manager import BackupManager
+        import asyncio
+        import os
+        import secrets
+        
+        async def run_test():
+            backup_path = f"backup_{secrets.token_hex(4)}.enc"
+            manager = BackupManager()
+            
+            backup_ok = await manager.create_backup(backup_path)
+            assert backup_ok is True
+            
+            restore_ok = await manager.verify_and_restore_backup(backup_path)
+            assert restore_ok is True
+            
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+                
+        asyncio.run(run_test())

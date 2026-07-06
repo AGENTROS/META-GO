@@ -3,6 +3,8 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useState } from 'react';
 import { SiweMessage } from 'siwe';
 
+import { setJWTToken } from '@/lib/tokenManager';
+
 export function useSIWE() {
   const { address, chainId } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -20,7 +22,7 @@ export function useSIWE() {
       const message = new SiweMessage({
         domain: window.location.host,
         address,
-        statement: 'Sign in to Meta Go — Sovereign Identity Protocol',
+        statement: 'Sign in to Meta Go - Sovereign Identity Protocol',
         uri: window.location.origin,
         version: '1',
         chainId,
@@ -39,6 +41,9 @@ export function useSIWE() {
       });
       if (!verifyRes.ok) throw new Error('SIWE verification failed');
       const data = await verifyRes.json();
+      if (data.token) {
+        setJWTToken(data.token);
+      }
       return data;
     } finally {
       setIsLoading(false);

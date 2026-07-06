@@ -5,13 +5,18 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Shield, ShieldAlert, Check, Loader2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage, useWriteContract } from 'wagmi';
+import { CONTRACTS } from '@/lib/wagmi.config';
+import { hardhat } from 'wagmi/chains';
+import { authenticatedFetch as fetch } from '@/lib/api';
+
 
 function GuardianApproveContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { writeContractAsync } = useWriteContract();
 
   const sessionId = searchParams.get('sessionId') || '';
   const [loading, setLoading] = useState(false);
@@ -26,20 +31,13 @@ function GuardianApproveContent() {
       setLoading(true);
       try {
         const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
-        // We can query status of the recovery session using a search or status check
-        // For convenience, we can look up recovery status by did (which we extract from session or status)
-        // Since get_recovery_status works with DID, we can hit it if we know the DID, but wait:
-        // We can implement a direct status fetch on BFF by session ID or DID.
-        // Let's call the status endpoint using did:metago:oldAddress (which we can derive if we get it).
-        // Let's fetch session details
-        // To support simple retrieval, let's look up status or assume it is loaded
-        setSessionInfo({
-          sessionId,
-          did: 'Resolving requesting identity...',
-          newAddress: 'Resolving target address...'
-        });
+        const res = await fetch(`${backend}/api/recovery/session/${sessionId}`);
+        if (!res.ok) throw new Error('Session not found');
+        const data = await res.json();
+        setSessionInfo(data);
       } catch (e) {
         console.error(e);
+        toast.error('Failed to resolve recovery session details');
       } finally {
         setLoading(false);
       }
@@ -52,14 +50,43 @@ function GuardianApproveContent() {
       toast.error('Connect your guardian wallet');
       return;
     }
+    if (!sessionInfo || !sessionInfo.oldAddress) {
+      toast.error('Session details not loaded');
+      return;
+    }
 
     setIsApproving(true);
-    const toastId = toast.loading('Generating cryptographic signature...');
+    const toastId = toast.loading('Initiating approval transaction...');
     try {
+      // 1. Submit on-chain approval
+      const txHash = await writeContractAsync({
+        address: CONTRACTS.IDENTITY_REGISTRY as `0x${string}`,
+        abi: [
+          {
+            "inputs": [
+              {
+                "internalType": "address",
+                "name": "_targetIdentity",
+                "type": "address"
+              }
+            ],
+            "name": "approveRecovery",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          }
+        ] as const,
+        functionName: 'approveRecovery',
+        args: [sessionInfo.oldAddress as `0x${string}`],
+        account: address as `0x${string}`,
+        chain: hardhat,
+      });
+
+      // 2. Submit signature & approval to backend to sync
+      toast.loading('Syncing approval with database...', { id: toastId });
       const message = `Approve Meta Go social recovery for session: ${sessionId}`;
       const signature = await signMessageAsync({ account: address, message });
 
-      toast.loading('Submitting guardian approval to consensus network...', { id: toastId });
       const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
       
       const res = await fetch(`${backend}/api/recovery/approve`, {
@@ -74,11 +101,11 @@ function GuardianApproveContent() {
 
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.detail || 'Approval failed');
+        throw new Error(errData.detail || 'Sync failed');
       }
 
       setHasApproved(true);
-      toast.success('Your approval has been successfully registered!', { id: toastId });
+      toast.success('Your on-chain approval has been registered!', { id: toastId });
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || 'Failed to approve', { id: toastId });

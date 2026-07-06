@@ -10,6 +10,8 @@ import { clsx } from 'clsx';
 import toast from 'react-hot-toast';
 import { useAccount, useSignMessage } from 'wagmi';
 import { deriveVaultKey, encryptVault, decryptVault } from '@/lib/vault.crypto';
+import { authenticatedFetch as fetch } from '@/lib/api';
+
 
 type Filter = 'ALL' | 'ON_CHAIN' | 'OFF_CHAIN' | 'EXPIRED';
 

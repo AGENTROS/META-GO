@@ -7,16 +7,19 @@ import { useSIWE } from '@/hooks/useSIWE';
 import { useAccount } from 'wagmi';
 
 export function WalletConnector({ onSuccess }: { onSuccess: () => void }) {
-  const { connectors, connectAsync, isPending } = useConnect();
-  const { isConnected } = useAccount();
+  const { connectors, connectAsync } = useConnect();
+  const { connector: activeConnector, isConnected } = useAccount();
   const { signIn, isLoading: siweLoading } = useSIWE();
+  const [localPending, setLocalPending] = useState(false);
   const [siweDone, setSiweDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleConnect(connector: any) {
     setError(null);
+    setLocalPending(true);
     try {
-      if (!isConnected) {
+      const needsConnect = !isConnected || activeConnector?.uid !== connector.uid;
+      if (needsConnect) {
         await connectAsync({ connector });
       }
       try {
@@ -31,13 +34,15 @@ export function WalletConnector({ onSuccess }: { onSuccess: () => void }) {
     } catch (e: any) {
       setError(e?.message || 'Connection failed');
       toast.error('Wallet connection cancelled');
+    } finally {
+      setLocalPending(false);
     }
   }
 
   return (
     <div className="space-y-3">
       {connectors.map(c => (
-        <button key={c.uid} onClick={() => handleConnect(c)} disabled={isPending || siweLoading}
+        <button key={c.uid} onClick={() => handleConnect(c)} disabled={localPending || siweLoading}
           data-testid={`connector-${c.id}`}
           className="w-full flex items-center justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 hover:border-blue-500/40 hover:bg-white dark:hover:bg-zinc-900 transition-all disabled:opacity-50">
           <div className="flex items-center gap-3">
