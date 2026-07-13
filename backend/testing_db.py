@@ -180,6 +180,8 @@ class AsyncInMemoryDB:
         self.sync_operations = AsyncInMemoryCollection()
         self.reconciliation_state = AsyncInMemoryCollection()
         self.registrations = AsyncInMemoryCollection()
+        self.refresh_tokens = AsyncInMemoryCollection()
+
 
     async def command(self, cmd):
         # support simple 'ping' used by health checks

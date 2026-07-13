@@ -17,17 +17,29 @@ export default function CommandRail() {
     return () => clearInterval(i);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
   const congestion = gas < 25 ? { label: 'Low', color: 'text-emerald-500' } : gas < 40 ? { label: 'Moderate', color: 'text-amber-500' } : { label: 'High', color: 'text-red-500' };
 
   return (
     <>
       <button onClick={() => setOpen(o => !o)} data-testid="command-rail-toggle"
+        aria-expanded={open}
+        aria-label="Toggle network telemetry panel"
         className={clsx('fixed right-0 top-1/2 -translate-y-1/2 z-40 p-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 rounded-l-lg transition-transform',
           open ? 'translate-x-[-320px]' : 'translate-x-0')}>
         <ChevronLeft size={16} className={open ? 'rotate-180' : ''} />
       </button>
 
-      <aside className={clsx('fixed right-0 top-16 bottom-0 z-30 w-80 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 p-5 overflow-y-auto transition-transform duration-300',
+      <aside aria-label="Network Telemetry Command Rail"
+        className={clsx('fixed right-0 top-16 bottom-0 z-30 w-80 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 p-5 overflow-y-auto transition-transform duration-300',
         open ? 'translate-x-0' : 'translate-x-full')}>
         <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-5 flex items-center gap-2">
           <Server size={14} className="text-blue-600" /> Network Telemetry

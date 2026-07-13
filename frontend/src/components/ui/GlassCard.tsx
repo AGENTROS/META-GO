@@ -13,12 +13,12 @@ export function GlassCard({ children, intensity = 'medium', hover = true, classN
     <div
       {...rest}
       className={clsx(
-        'relative rounded-2xl border bg-white dark:bg-zinc-900',
-        'border-zinc-200/80 dark:border-zinc-800/80',
-        intensity === 'high' && 'shadow-md',
-        intensity === 'medium' && 'shadow-sm',
+        'relative rounded-[24px] border backdrop-blur-[20px] saturate-[160%]',
+        'bg-zinc-950/40 border-white/8',
+        intensity === 'high' && 'shadow-[0_12px_40px_0_rgba(0,0,0,0.6)]',
+        intensity === 'medium' && 'shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]',
         intensity === 'low' && 'shadow-none',
-        hover && 'transition-all duration-300 hover:border-blue-500/40 hover:shadow-md',
+        hover && 'transition-all duration-300 hover:border-blue-500/30 hover:shadow-[0_0_24px_rgba(59,130,246,0.15)]',
         className
       )}
     >

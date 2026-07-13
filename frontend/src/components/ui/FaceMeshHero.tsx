@@ -110,8 +110,22 @@ export function FaceMeshHero() {
 
     let raf = 0;
     const t0 = performance.now();
+    let isVisible = true;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(el);
     
     async function tick() {
+      if (!isVisible || document.hidden) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
       const t = (performance.now() - t0) * 0.001;
       const { video, detector, fallbackActive } = stateRef.current;
 
@@ -181,6 +195,7 @@ export function FaceMeshHero() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
+      observer.disconnect();
       disposeObject(scene);
       disposeRenderer(renderer);
     };

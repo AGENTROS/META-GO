@@ -12,7 +12,7 @@ const BiometricVerificationPipeline = dynamic(
 
 import { Shield, CheckCircle2 } from 'lucide-react';
 import { useIdentityStore } from '@/store/useIdentityStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -57,7 +57,7 @@ export default function SignInPage() {
         {/* Central Restoration Container */}
         <div className="w-full">
           <AnimatePresence mode="wait">
-            <motion.div
+            <m.div
               key={step}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -84,7 +84,7 @@ export default function SignInPage() {
                   </div>
                 </div>
               )}
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
 

@@ -6,8 +6,16 @@ import { useAccount } from 'wagmi';
 import { User, Hash, Shield, ChevronRight, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
+import { useShallow } from 'zustand/shallow';
+
 export default function ProfilePage() {
-  const { handle, did, soulboundTokens, credentials, identityMetrics } = useIdentityStore();
+  const { handle, did, soulboundTokens, credentials, identityMetrics } = useIdentityStore(useShallow(s => ({
+    handle: s.handle,
+    did: s.did,
+    soulboundTokens: s.soulboundTokens,
+    credentials: s.credentials,
+    identityMetrics: s.identityMetrics
+  })));
   const { address } = useAccount();
 
   return (

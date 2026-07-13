@@ -1,13 +1,10 @@
-'use client';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Navbar } from '@/components/layout/Navbar';
-import { FaceMeshHero } from '@/components/ui/FaceMeshHero';
-import { Shield, Fingerprint, Eye, Zap, Lock, Network, ArrowRight, CheckCircle2, Cpu, Globe } from 'lucide-react';
+import ClientNavbar from './ClientNavbar';
+import ClientFaceMeshHero from './ClientFaceMeshHero';
+import { Shield, Fingerprint, Eye, Zap, Lock, Network, ArrowRight, CheckCircle2, Cpu } from 'lucide-react';
 
 const FEATURES = [
-  { icon: Fingerprint, title: 'Zero-Knowledge Biometrics', desc: 'Prove your identity without revealing your face. 468-point FaceMesh hashed locally, then permanently discarded.' },
+  { icon: Fingerprint, title: 'Zero-Knowledge Biometrics', desc: 'Prove your identity without revealing your face. 468-point FaceMesh mapped locally, then permanently discarded.' },
   { icon: Lock, title: 'Soulbound Credentials', desc: 'Non-transferable ERC-721 SBTs minted on Polygon. Identity that cannot be sold, traded, or stolen.' },
   { icon: Shield, title: 'Multi-Factor Defense', desc: 'Wallet + Face + Voice triple-modal biometric authentication. Bypass-resistant by cryptographic design.' },
   { icon: Network, title: 'Cross-Platform DIDs', desc: 'W3C-compliant decentralized identifiers resolvable across Web3 services and EVM-compatible chains.' },
@@ -23,28 +20,23 @@ const STATS = [
 ];
 
 export default function Home() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', h);
-    return () => window.removeEventListener('scroll', h);
-  }, []);
-
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+      <ClientNavbar />
 
       {/* HERO */}
       <section className="relative pt-32 pb-20 px-4 overflow-hidden">
-        <div className="absolute inset-0 grid-pattern opacity-60" />
+        <div className="absolute inset-0 grid-pattern opacity-60 pointer-events-none" />
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          
+          {/* Static Anim Wrapper using simple CSS animation */}
+          <div className="animate-fade-in-up duration-700 ease-out">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-[10px] font-mono uppercase tracking-wider text-blue-600">DZBIP v1.0 — Live on Polygon Amoy</span>
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-zinc-900 dark:text-white leading-[1.05] mb-6">
-              The <span className="gradient-text">sovereign identity</span><br />
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] mb-6">
+              The <span className="gradient-text font-extrabold">sovereign identity</span><br />
               protocol for Web3.
             </h1>
             <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400 max-w-xl mb-8 leading-relaxed">
@@ -53,11 +45,11 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-3" data-testid="hero-cta-row">
               <Link href="/auth/signup" data-testid="hero-cta-primary"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-xl text-sm font-bold transition-all">
+                className="inline-flex items-center gap-2 px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-xl text-sm font-bold transition-all duration-250">
                 Forge Your Identity <ArrowRight size={14} />
               </Link>
               <Link href="#demo" data-testid="hero-cta-secondary"
-                className="inline-flex items-center gap-2 px-6 py-3 border border-zinc-300 dark:border-zinc-700 hover:border-blue-500 hover:text-blue-600 text-zinc-700 dark:text-zinc-300 rounded-xl text-sm font-bold transition-all">
+                className="inline-flex items-center gap-2 px-6 py-3 border border-zinc-300 dark:border-zinc-700 hover:border-blue-500 hover:text-blue-600 text-zinc-700 dark:text-zinc-300 rounded-xl text-sm font-bold transition-all duration-250">
                 See it in action
               </Link>
             </div>
@@ -70,12 +62,11 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }}
-            className="relative aspect-square max-w-md mx-auto w-full">
+          <div className="relative aspect-square max-w-md mx-auto w-full animate-fade-in-up duration-1000 ease-out delay-150">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-100/40 via-transparent to-indigo-100/40 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-3xl" />
-            <FaceMeshHero />
+            <ClientFaceMeshHero />
             <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between p-3 rounded-xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -83,7 +74,7 @@ export default function Home() {
               </div>
               <span className="text-[10px] font-mono text-blue-600">468 / 468 landmarks</span>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -102,14 +93,14 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {FEATURES.map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
-                className="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-500/40 hover:shadow-md transition-all group">
+              <div key={f.title}
+                className="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-500/40 hover:shadow-md transition-all duration-300 group hover:scale-[1.02] cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <f.icon size={18} className="text-blue-600" />
                 </div>
                 <h3 className="text-base font-bold text-zinc-900 dark:text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{f.desc}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -132,7 +123,7 @@ export default function Home() {
               { n: '04', t: 'Voice MFA', d: 'Vocal frequency print becomes your second cryptographic factor.' },
               { n: '05', t: 'Mint SBT', d: 'A non-transferable on-chain credential binds it all together.' },
             ].map(s => (
-              <div key={s.n} className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+              <div key={s.n} className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 hover:scale-[1.02] transition-transform duration-300">
                 <p className="text-2xl font-bold gradient-text mb-3">{s.n}</p>
                 <p className="text-sm font-bold text-zinc-900 dark:text-white mb-1.5">{s.t}</p>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">{s.d}</p>
@@ -158,7 +149,7 @@ export default function Home() {
               { t: 'SOC2 Ready', d: 'Client-side prover, encrypted sessions, audit-grade event logging.' },
               { t: 'W3C DID Standard', d: 'Decentralized identifiers compatible with Verifiable Credentials.' },
             ].map(c => (
-              <div key={c.t} className="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+              <div key={c.t} className="p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:scale-[1.01] transition-transform duration-300">
                 <div className="flex items-center gap-2 mb-3">
                   <CheckCircle2 size={14} className="text-emerald-500" />
                   <p className="text-sm font-bold text-zinc-900 dark:text-white">{c.t}</p>
@@ -178,7 +169,7 @@ export default function Home() {
             <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-4">Ready to claim your sovereign identity?</h2>
             <p className="text-base text-blue-50 mb-8 max-w-xl mx-auto">Join the Meta Go protocol in under 60 seconds. No passwords. No data leakage. Just math.</p>
             <Link href="/auth/signup" data-testid="footer-cta"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-white text-zinc-900 hover:bg-zinc-100 rounded-xl text-sm font-bold">
+              className="inline-flex items-center gap-2 px-6 py-3 bg-white text-zinc-900 hover:bg-zinc-100 rounded-xl text-sm font-bold transition-all duration-200">
               Get Started <ArrowRight size={14} />
             </Link>
           </div>
@@ -186,10 +177,14 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-zinc-200 dark:border-zinc-800 py-8 px-4 text-center text-xs text-zinc-500">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Globe size={12} /> <span className="font-mono">Meta Go — DZBIP v1.0</span>
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <p>© {new Date().getFullYear()} Meta Go Protocol. Sovereign and decentralized.</p>
+          <div className="flex gap-4">
+            <Link href="/docs" className="hover:underline">Documentation</Link>
+            <Link href="/security" className="hover:underline">Security Audit</Link>
+            <Link href="/billing" className="hover:underline">Pricing</Link>
+          </div>
         </div>
-        <p>Distributed Zero-Knowledge Biometric Identity Protocol</p>
       </footer>
     </div>
   );

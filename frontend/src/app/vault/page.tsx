@@ -15,14 +15,29 @@ import { authenticatedFetch as fetch } from '@/lib/api';
 
 type Filter = 'ALL' | 'ON_CHAIN' | 'OFF_CHAIN' | 'EXPIRED';
 
+import { useShallow } from 'zustand/shallow';
+
 export default function VaultPage() {
-  const { credentials, addCredential, walletAddress } = useIdentityStore();
+  const { credentials, addCredential, walletAddress } = useIdentityStore(useShallow(s => ({
+    credentials: s.credentials,
+    addCredential: s.addCredential,
+    walletAddress: s.walletAddress
+  })));
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
   const [filter, setFilter] = useState<Filter>('ALL');
   const [importOpen, setImportOpen] = useState(false);
   const [vcJson, setVcJson] = useState('');
+
+  useEffect(() => {
+    if (!importOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setImportOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [importOpen]);
 
   // Backup states
   const [isSyncing, setIsSyncing] = useState(false);
@@ -409,10 +424,14 @@ export default function VaultPage() {
 
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setImportOpen(false)}>
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-lg w-full"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold">Import Verifiable Credential</h2>
-              <button onClick={() => setImportOpen(false)}><X size={18} /></button>
+              <h2 id="modal-title" className="text-base font-bold">Import Verifiable Credential</h2>
+              <button onClick={() => setImportOpen(false)} aria-label="Close modal"><X size={18} /></button>
             </div>
             <textarea value={vcJson} onChange={e => setVcJson(e.target.value)} data-testid="vc-textarea"
               placeholder='{"@context":["https://www.w3.org/2018/credentials/v1"], "type":["VerifiableCredential", ...]}'

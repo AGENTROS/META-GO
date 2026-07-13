@@ -2,7 +2,8 @@
 import { useEffect } from 'react';
 import { useIdentityStore } from '@/store/useIdentityStore';
 import { Shield, AlertTriangle, CheckCircle2, Zap, Clock } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
+import { useShallow } from 'zustand/shallow';
 
 const ICONS: Record<string, any> = {
   SBT_ISSUED: CheckCircle2,
@@ -29,7 +30,10 @@ const SEED_EVENTS = [
 ];
 
 export default function ActivityFeed() {
-  const { notifications, addNotification } = useIdentityStore();
+  const { notifications, addNotification } = useIdentityStore(useShallow(s => ({
+    notifications: s.notifications,
+    addNotification: s.addNotification
+  })));
 
   useEffect(() => {
     if (notifications.length === 0) {
@@ -45,7 +49,7 @@ export default function ActivityFeed() {
       {notifications.map((n, i) => {
         const Icon = ICONS[n.type] || Shield;
         return (
-          <motion.div key={n.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+          <m.div key={n.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
             className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${COLORS[n.type]}`}>
               <Icon size={12} />
@@ -54,7 +58,7 @@ export default function ActivityFeed() {
               <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 leading-snug">{n.message}</p>
               <p className="text-[10px] text-zinc-450 mt-0.5 font-mono">{new Date(n.timestamp).toLocaleTimeString()}</p>
             </div>
-          </motion.div>
+          </m.div>
         );
       })}
     </div>

@@ -88,5 +88,16 @@ frontend/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
 credentials.json
 *.key
 .credentials
+
+# Local build artifacts and temporary files
 chrome-temp-profile/
+contracts-hardhat/artifacts/
+contracts-hardhat/circuits/build/
+contracts-hardhat/typechain-types/
+demo_avatar.gltf
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+reports/
+test_reports/
+CSE PAPER/
 

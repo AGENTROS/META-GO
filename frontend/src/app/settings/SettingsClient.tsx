@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { Navbar } from '@/components/layout/Navbar';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { clsx } from 'clsx';
+import { apiCall } from '@/lib/api';
 
 export default function SettingsClient() {
   const { theme, setTheme } = useTheme();
@@ -17,6 +18,38 @@ export default function SettingsClient() {
   const router = useRouter();
   const [notifications, setNotifications] = useState({ email: true, inApp: true });
   const [rotating, setRotating] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  const fetchSessions = async () => {
+    setLoadingSessions(true);
+    try {
+      const data = await apiCall('/api/auth/sessions');
+      if (Array.isArray(data)) {
+        setSessions(data);
+      }
+    } catch (err) {
+      console.error('Failed to load active sessions:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  const handleRevokeSession = async (sessToken: string) => {
+    try {
+      const res = await apiCall(`/api/auth/sessions/${sessToken}`, { method: 'DELETE' });
+      if (res && res.ok) {
+        toast.success('Session revoked successfully');
+        fetchSessions();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to revoke session');
+    }
+  };
 
   function handleDangerLogout() {
     if (confirm('Are you sure? This will end your active session.')) {
@@ -164,6 +197,41 @@ export default function SettingsClient() {
                 </button>
               </div>
             ))}
+          </GlassCard>
+
+          <GlassCard className="p-6 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+            <h2 className="text-sm font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Shield size={16} className="text-blue-600" /> Active Sessions
+            </h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">
+              Manage your active sessions across different devices and locations. Revoking a session will instantly log that device out.
+            </p>
+            {loadingSessions ? (
+              <div className="text-center py-4 text-xs text-zinc-450 font-mono">Loading sessions...</div>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map((s, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-2xl gap-4">
+                    <div className="text-left space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-900 dark:text-white">{s.ipAddress}</span>
+                        {s.isCurrent && (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-[8px] font-bold text-blue-600 uppercase tracking-wider">Current</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-zinc-450 font-mono truncate max-w-xs">{s.userAgent}</p>
+                      <p className="text-[9px] text-zinc-500">Last Active: {new Date(s.lastActivityAt).toLocaleString()}</p>
+                    </div>
+                    {!s.isCurrent && (
+                      <button onClick={() => handleRevokeSession(s.token)}
+                        className="p-2 bg-red-650/15 border border-red-500/20 hover:bg-red-650/25 text-red-500 rounded-xl transition-all">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
 
           <GlassCard className="p-6 bg-white dark:bg-zinc-900 border border-red-500/20">

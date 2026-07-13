@@ -15,7 +15,7 @@ import { useIdentityStore } from '@/store/useIdentityStore';
 import { checkHandleAvailability } from '@/lib/bloomFilter';
 import { useAccount } from 'wagmi';
 import { CheckCircle, XCircle, Info, Shield, Key, Cpu, HelpCircle, ArrowRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 
@@ -189,7 +189,7 @@ export default function SignupPage() {
             ))}
           </div>
           <div className="h-1 bg-zinc-200 dark:bg-zinc-900 rounded-full overflow-hidden">
-            <motion.div 
+            <m.div 
               className="h-full bg-gradient-to-r from-blue-500 to-indigo-500" 
               initial={{ width: 0 }}
               animate={{ width: `${((currentActiveIndex + 1) / activeSteps.length) * 100}%` }}
@@ -204,7 +204,7 @@ export default function SignupPage() {
           {/* Left Column: Wizard Card */}
           <div className="lg:col-span-7">
             <AnimatePresence mode="wait">
-              <motion.div 
+              <m.div 
                 key={step}
                 initial={{ opacity: 0, x: -10 }} 
                 animate={{ opacity: 1, x: 0 }} 
@@ -424,7 +424,7 @@ export default function SignupPage() {
                     </p>
                   </div>
                 )}
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
 

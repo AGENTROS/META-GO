@@ -6,8 +6,7 @@ import toast from 'react-hot-toast';
 import * as THREE from 'three';
 import { disposeObject, disposeRenderer } from '@/lib/three.utils';
 import { generateZKProof } from '@/lib/zkp.engine';
-import * as tf from '@tensorflow/tfjs';
-import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
+// TensorFlow and Face Landmarks Detection will be loaded dynamically on verification activation
 
 function mockIpfsHash(filename: string): string {
   // Generate a mock CIDv0 (starts with Qm, 46 characters)
@@ -111,8 +110,22 @@ function AvatarPreview3D({ speed, lightIntensity, animation, autoRotate }: Previ
 
     let raf = 0;
     const t0 = performance.now();
+    let isVisible = true;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.05 }
+    );
+    observer.observe(el);
 
     function tick() {
+      if (!isVisible || document.hidden) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
       const t = (performance.now() - t0) * 0.001;
       dirLight.intensity = lightIntensity;
 
@@ -176,6 +189,7 @@ function AvatarPreview3D({ speed, lightIntensity, animation, autoRotate }: Previ
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
+      observer.disconnect();
       disposeObject(scene);
       disposeRenderer(renderer);
     };
@@ -296,6 +310,7 @@ export function VRMAvatarSlot() {
       
       let detector;
       try {
+        const faceLandmarksDetection = await import('@tensorflow-models/face-landmarks-detection');
         const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
         const loadDetectorPromise = faceLandmarksDetection.createDetector(model, {
           runtime: 'mediapipe',
