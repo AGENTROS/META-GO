@@ -98,15 +98,90 @@ export function FaceMeshHero() {
       blending: THREE.AdditiveBlending
     });
     const points = new THREE.Points(geo, mat);
-    scene.add(points);
 
     stateRef.current.points = points;
     stateRef.current.geo = geo;
 
-    const ringGeo = new THREE.TorusGeometry(1.6, 0.003, 8, 80);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x4f46e5, transparent: true, opacity: 0.25 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    scene.add(ring);
+    // Create a group for the fallback rotating globe
+    const globeGroup = new THREE.Group();
+    globeGroup.add(points);
+
+    // Calculate connections between nearby nodes to draw the wireframe network lines
+    const linePositions: number[] = [];
+    for (let i = 0; i < NUM; i++) {
+      const p1_x = positions[i * 3];
+      const p1_y = positions[i * 3 + 1];
+      const p1_z = positions[i * 3 + 2];
+      for (let j = i + 1; j < NUM; j++) {
+        const p2_x = positions[j * 3];
+        const p2_y = positions[j * 3 + 1];
+        const p2_z = positions[j * 3 + 2];
+        const dist = Math.sqrt(
+          (p1_x - p2_x) ** 2 +
+          (p1_y - p2_y) ** 2 +
+          (p1_z - p2_z) ** 2
+        );
+        if (dist < 0.28) {
+          linePositions.push(p1_x, p1_y, p1_z);
+          linePositions.push(p2_x, p2_y, p2_z);
+        }
+      }
+    }
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x4f46e5,
+      transparent: true,
+      opacity: 0.15,
+      blending: THREE.AdditiveBlending
+    });
+    const networkLines = new THREE.LineSegments(lineGeo, lineMat);
+    globeGroup.add(networkLines);
+
+    // Create 20 larger glowing hub points on the globe
+    const hubPositions = new Float32Array(20 * 3);
+    for (let i = 0; i < 20; i++) {
+      const idx = Math.floor(Math.random() * NUM);
+      hubPositions[i * 3] = positions[idx * 3];
+      hubPositions[i * 3 + 1] = positions[idx * 3 + 1];
+      hubPositions[i * 3 + 2] = positions[idx * 3 + 2];
+    }
+    const hubGeo = new THREE.BufferGeometry();
+    hubGeo.setAttribute('position', new THREE.BufferAttribute(hubPositions, 3));
+    const hubMat = new THREE.PointsMaterial({
+      color: 0xa855f7,
+      size: 0.065,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    });
+    const hubPoints = new THREE.Points(hubGeo, hubMat);
+    globeGroup.add(hubPoints);
+
+    scene.add(globeGroup);
+
+    const rings: THREE.Mesh[] = [];
+    const ringGeo = new THREE.TorusGeometry(1.6, 0.002, 8, 100);
+    
+    const ringMat1 = new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 });
+    const ring1 = new THREE.Mesh(ringGeo, ringMat1);
+    ring1.rotation.x = Math.PI / 2;
+    scene.add(ring1);
+    rings.push(ring1);
+    
+    const ringMat2 = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.25 });
+    const ring2 = new THREE.Mesh(ringGeo, ringMat2);
+    ring2.rotation.x = Math.PI / 4;
+    ring2.rotation.y = Math.PI / 4;
+    scene.add(ring2);
+    rings.push(ring2);
+    
+    const ringMat3 = new THREE.MeshBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.2 });
+    const ring3 = new THREE.Mesh(ringGeo, ringMat3);
+    ring3.rotation.x = -Math.PI / 4;
+    ring3.rotation.y = -Math.PI / 4;
+    scene.add(ring3);
+    rings.push(ring3);
 
     let raf = 0;
     const t0 = performance.now();
@@ -130,6 +205,8 @@ export function FaceMeshHero() {
       const { video, detector, fallbackActive } = stateRef.current;
 
       if (!fallbackActive && video && detector) {
+        networkLines.visible = false;
+        hubPoints.visible = false;
         try {
           const faces = await detector.estimateFaces(video, { flipHorizontal: true });
           if (faces && faces.length > 0) {
@@ -159,8 +236,12 @@ export function FaceMeshHero() {
           console.error(e);
         }
       } else {
-        points.rotation.y = t * 0.15;
-        points.rotation.x = Math.sin(t * 0.1) * 0.1;
+        networkLines.visible = true;
+        hubPoints.visible = true;
+        hubMat.opacity = 0.5 + Math.sin(t * 4) * 0.3;
+
+        globeGroup.rotation.y = t * 0.15;
+        globeGroup.rotation.x = Math.sin(t * 0.1) * 0.1;
         
         const arr = geo.getAttribute('position').array as Float32Array;
         for (let i = 0; i < NUM; i++) {
@@ -177,7 +258,9 @@ export function FaceMeshHero() {
         geo.getAttribute('position').needsUpdate = true;
       }
 
-      ring.rotation.z = t * 0.08;
+      rings.forEach((r, idx) => {
+        r.rotation.z = t * (0.05 + idx * 0.02);
+      });
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     }

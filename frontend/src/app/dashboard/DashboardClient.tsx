@@ -236,7 +236,7 @@ export function CCIPBridgeTracker() {
                 <div className="text-center">
                   <p className={`text-[9px] font-bold ${
                     bridgeStep === 'finalized' ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400'
-                  }`}>{currentChainMeta.name.split(' ')[0]}</p>
+                  }`}>{currentChainMeta?.name?.split(' ')[0]}</p>
                   <p className={`text-[7px] font-mono uppercase tracking-widest font-semibold ${
                     bridgeStep === 'finalized' ? 'text-sky-500' : 'text-zinc-455'
                   }`}>

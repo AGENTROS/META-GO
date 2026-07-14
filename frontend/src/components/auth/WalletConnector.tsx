@@ -32,7 +32,11 @@ export function WalletConnector({ onSuccess }: { onSuccess: () => void }) {
       toast.success('Wallet connected and verified');
       setTimeout(onSuccess, 600);
     } catch (e: any) {
-      setError(e?.message || 'Connection failed');
+      if (e?.message?.includes('already pending')) {
+        setError('Please open your wallet extension (e.g. MetaMask) to approve the pending connection request.');
+      } else {
+        setError(e?.message || 'Connection failed');
+      }
       toast.error('Wallet connection cancelled');
     } finally {
       setLocalPending(false);

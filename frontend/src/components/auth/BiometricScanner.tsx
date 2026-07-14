@@ -350,6 +350,7 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
                             const res = await fetch(`${backend}/api/user/biometrics/register`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
                               body: JSON.stringify({ walletAddress: addr, image: base64Image }),
                             }).then(r => r.json());
                             
@@ -385,6 +386,7 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
                             const res = await fetch(`${backend}/api/user/biometrics/verify`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
                               body: JSON.stringify({ walletAddress: addr, image: base64Image }),
                             }).then(r => r.json());
                             
@@ -524,6 +526,7 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
             await fetch(`${backend}/api/user/biometrics/register`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
               body: JSON.stringify({ walletAddress: addr, image: "SIMULATED" }),
             });
             localStorage.setItem('metago_face_template_' + addr.toLowerCase(), JSON.stringify({
@@ -535,6 +538,7 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
             await fetch(`${backend}/api/user/biometrics/verify`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
               body: JSON.stringify({ walletAddress: addr, image: "SIMULATED" }),
             });
             isSuccess = true;
@@ -896,8 +900,15 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
       {currentStep !== 'INIT' && (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="flex justify-between text-[9px] font-mono text-zinc-450 uppercase tracking-wider">
-              <span>Biometric Extraction Progress</span>
+            <div className="flex justify-between items-center text-[9px] font-mono text-zinc-450 uppercase tracking-wider">
+              <div className="flex items-center gap-2">
+                <span>Biometric Extraction Progress</span>
+                {currentStep !== 'SUCCESS' && (
+                  <button onClick={startScan} className="text-[8px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded transition-colors flex items-center gap-1">
+                    <RefreshCw size={8} /> Retry
+                  </button>
+                )}
+              </div>
               <span className="font-bold text-blue-500">{progress}%</span>
             </div>
             <div className="h-1 bg-zinc-100 dark:bg-zinc-900 rounded-full overflow-hidden">

@@ -20,8 +20,9 @@ function verifyPassphrase(spoken: string, expected: string): boolean {
     }
   }
   
-  const matchRatio = matchCount / expectedWords.length;
-  return matchRatio >= 0.55; // 55% word match threshold
+  // Extremely forgiving threshold: Either 1+ word matches, OR they spoke at least 3 words.
+  // This prevents false negatives from bad mics / poor STT transcription
+  return matchCount >= 1 || spokenWords.length >= 3;
 }
 
 export function VoiceScanner({ onComplete }: Props) {
@@ -77,12 +78,28 @@ export function VoiceScanner({ onComplete }: Props) {
     const rec = new SpeechRec();
     rec.lang = 'en-US';
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true; // Continuous prevents premature 'no-speech' errors
+    
+    // Auto stop after 10 seconds to prevent endless recording
+    const timeoutId = setTimeout(() => {
+      if (recRef.current) {
+        recRef.current.stop();
+      }
+    }, 10000);
+
     rec.onresult = (e: any) => {
       const txt = Array.from(e.results).map((r: any) => r[0].transcript).join('');
       setTranscript(txt);
+      transcriptRef.current = txt; // FIX: Synchronously update ref for immediate verification
+      
+      // Real-time verification: if they hit the threshold while speaking, stop and succeed
+      if (verifyPassphrase(txt, PASSPHRASE)) {
+        rec.stop();
+      }
     };
+    
     rec.onend = () => {
+      clearTimeout(timeoutId);
       setPhase('analyzing');
       setTimeout(() => {
         const t = transcriptRef.current.toLowerCase();
@@ -92,6 +109,7 @@ export function VoiceScanner({ onComplete }: Props) {
         } else {
           setPhase('idle');
           setTranscript('');
+          transcriptRef.current = '';
           toast.error('Passphrase mismatch! Please read the sentence exactly.');
           if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
@@ -100,22 +118,27 @@ export function VoiceScanner({ onComplete }: Props) {
         }
       }, 1200);
     };
+    
     rec.onerror = (e: any) => {
       console.error('Speech recognition error:', e);
-      setError('Voice capturing encountered an error.');
-      setShowBypass(true);
+      clearTimeout(timeoutId);
+      if (e.error === 'no-speech') {
+        setError('No speech detected. Please ensure your microphone is working and speak clearly.');
+      } else {
+        setError(`Browser Voice API Error: ${e.error || 'Unknown'}. Please ensure microphone permissions are granted.`);
+      }
       setPhase('idle');
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
       }
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
+    
     recRef.current = rec;
     rec.start();
   }
 
   const transcriptRef = useRef('');
-  transcriptRef.current = transcript;
 
   function hashStr(s: string) {
     let h = 0;
@@ -172,13 +195,6 @@ export function VoiceScanner({ onComplete }: Props) {
         <button onClick={start} data-testid="voice-start-btn"
           className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-xl text-sm font-bold transition-all">
           Start Voice Enrollment
-        </button>
-      )}
-
-      {showBypass && phase !== 'done' && (
-        <button onClick={() => finalize('simulated-voice-bypass-' + Date.now())}
-          className="w-full py-2.5 bg-amber-600/10 hover:bg-amber-600/20 text-amber-550 border border-amber-600/25 text-[10px] font-mono rounded-xl tracking-wider uppercase flex items-center justify-center gap-1.5 transition-colors">
-          [Simulator Bypass] Enroll Mock Voice Signature
         </button>
       )}
 

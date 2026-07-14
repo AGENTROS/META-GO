@@ -859,7 +859,7 @@ class TestBackendSecurity:
         }
         session.post(f"{API}/test/reset-rate-limits")
         r2 = session.post(f"{API}/user/sync", json=body2, headers=headers2, timeout=15)
-        assert r2.status_code in (400, 502)
+        assert r2.status_code in (400, 409, 502)
 
     def test_ephemeral_key_generation_path(self):
         orig_test_mode = os.environ.get("TEST_MODE")

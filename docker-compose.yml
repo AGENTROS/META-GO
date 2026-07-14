@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: metago-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secure_password
+
+  redis:
+    image: redis:alpine
+    container_name: metago-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: metago-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URL=mongodb://admin:secure_password@mongodb:27017
+      - DB_NAME=metago_production
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=production_super_secret_key_change_me
+      - ENV=production
+    depends_on:
+      - mongodb
+      - redis
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: metago-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:
+  redis_data:

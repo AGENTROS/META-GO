@@ -181,6 +181,8 @@ class AsyncInMemoryDB:
         self.reconciliation_state = AsyncInMemoryCollection()
         self.registrations = AsyncInMemoryCollection()
         self.refresh_tokens = AsyncInMemoryCollection()
+        self.username_reservations = AsyncInMemoryCollection()
+        self.dids = AsyncInMemoryCollection()
 
 
     async def command(self, cmd):

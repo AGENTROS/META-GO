@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import HydrationFix from "@/components/HydrationFix";
 
 export const metadata: Metadata = {
   title: "Meta Go — Sovereign Identity Protocol",
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
+        <HydrationFix />
         <Providers>{children}</Providers>
       </body>
     </html>
