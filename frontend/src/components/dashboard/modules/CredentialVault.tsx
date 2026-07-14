@@ -12,6 +12,7 @@ export default function CredentialVault() {
 
   useEffect(() => {
     async function fetchVault() {
+      if (!address) { setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/dashboard/vault/credentials?address=${dummyAddress}`);
         if (res.ok) {
@@ -25,7 +26,7 @@ export default function CredentialVault() {
       }
     }
     fetchVault();
-  }, []);
+  }, [address]);
 
   return (
     <>

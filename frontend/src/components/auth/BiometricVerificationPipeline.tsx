@@ -475,9 +475,14 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
                 }
                 else if (currentChallenge === 'BLINK') {
                   const ear = Math.hypot(topEyepid.y - bottomEyepid.y, topEyepid.x - bottomEyepid.x) / (eyeDist || 1);
-                  if (baselineRef.current && ear < 0.62 * baselineRef.current.ear) {
-                    stableCountRef.current += 1;
-                    if (stableCountRef.current >= 4) {
+                  if (baselineRef.current) {
+                    if (ear < 0.65 * baselineRef.current.ear) {
+                      // Eyes are closed (EAR dropped)
+                      stableCountRef.current += 1;
+                      // If held closed for a long time (e.g. deliberate slow blink)
+                      if (stableCountRef.current >= 3) nextChallenge();
+                    } else if (stableCountRef.current >= 1) {
+                      // Eyes were closed for at least 1 frame and are now open again (Natural fast blink cycle complete)
                       nextChallenge();
                     }
                   }
@@ -1061,6 +1066,15 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
                       </div>
                     </div>
                   </div>
+                  {pipelineResult.voiceError && (
+                    <div className="mt-4 p-3 border border-red-500/30 bg-red-500/10 rounded-xl flex items-start gap-2">
+                      <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={14} />
+                      <div>
+                        <p className="text-[10px] font-bold font-mono text-red-500 uppercase">Voice Verification Flagged</p>
+                        <p className="text-xs text-red-400 mt-1">{pipelineResult.voiceError}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

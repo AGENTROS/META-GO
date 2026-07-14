@@ -12,6 +12,7 @@ export default function BurnerDID() {
   const dummyAddress = address;
 
   const fetchBurners = async () => {
+    if (!address) { setLoading(false); return; }
     try {
       const res = await fetch(`http://localhost:8001/api/privacy/burner-dids?address=${dummyAddress}`);
       if (res.ok) {
@@ -27,7 +28,7 @@ export default function BurnerDID() {
 
   useEffect(() => {
     fetchBurners();
-  }, []);
+  }, [address]);
 
   const generateBurner = async () => {
     setGenerating(true);

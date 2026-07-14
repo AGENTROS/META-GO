@@ -37,10 +37,53 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   allowedDevOrigins: ['*'],
   async headers() {
+    const noCacheHeaders = [
+      {
+        key: 'Cache-Control',
+        value: 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      },
+      {
+        key: 'Pragma',
+        value: 'no-cache'
+      },
+      {
+        key: 'Expires',
+        value: '0'
+      }
+    ];
+
     return [
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+      {
+        source: '/dashboard/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/vault/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/sbt-gallery/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/billing/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/profile/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/settings/:path*',
+        headers: noCacheHeaders,
+      },
+      {
+        source: '/admin/:path*',
+        headers: noCacheHeaders,
       },
     ];
   },

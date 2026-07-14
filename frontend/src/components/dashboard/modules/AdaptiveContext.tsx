@@ -12,6 +12,7 @@ export default function AdaptiveContext() {
 
   useEffect(() => {
     async function fetchRisk() {
+      if (!address) { setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/privacy/context-risk?address=${dummyAddress}`);
         if (res.ok) {
@@ -25,7 +26,7 @@ export default function AdaptiveContext() {
       }
     }
     fetchRisk();
-  }, []);
+  }, [address]);
 
   if (loading) {
     return (
@@ -69,7 +70,7 @@ export default function AdaptiveContext() {
         
         {/* Telemetry Factors */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {context?.factors.map((f: any, i: number) => (
+          {(context?.factors || []).map((f: any, i: number) => (
             <div key={i} style={{ padding: '16px', background: '#0a0a0c', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 {f.factor.includes('Device') && <Laptop size={16} className="text-muted"/>}
@@ -93,7 +94,7 @@ export default function AdaptiveContext() {
           </h3>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {context?.reasons.map((reason: string, i: number) => (
+            {(context?.reasons || []).map((reason: string, i: number) => (
               <div key={i} style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '14px', lineHeight: 1.6, color: 'var(--muted)', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                 <CheckCircle2 size={16} style={{ color: getRiskColor(context?.risk_level), flexShrink: 0, marginTop: '2px' }} />
                 {reason}

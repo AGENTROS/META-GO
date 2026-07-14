@@ -738,10 +738,11 @@ export function DIDMailInbox() {
       const res = await fetch(`${backend}/api/messages/${activeAddress.toLowerCase()}`);
       if (res.ok) {
         const data = await res.json();
-        setRawMessages(data.messages);
+        const messages = data.messages || [];
+        setRawMessages(messages);
         
         // Decrypt all messages
-        const decryptedList = await Promise.all(data.messages.map(async (m: any) => {
+        const decryptedList = await Promise.all(messages.map(async (m: any) => {
           try {
             const bytes = new Uint8Array(window.atob(m.ciphertext).split('').map(c => c.charCodeAt(0)));
             const decryptedBuffer = await window.crypto.subtle.decrypt(
@@ -1116,7 +1117,7 @@ export default function DashboardClient() {
         const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
         const res = await fetch(`${backend}/api/user/me`, { credentials: 'include' }).then(r => r.json());
         if (res.authenticated && res.biometricSecurityLogs) {
-          setSecurityLogs([...res.biometricSecurityLogs].reverse());
+          setSecurityLogs([...(res.biometricSecurityLogs || [])].reverse());
         }
       } catch (e) {
         console.warn("Failed to load security logs:", e);

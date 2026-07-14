@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { Network, ZoomIn, ZoomOut, Search, Activity, AlertTriangle } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
+import { authenticatedFetch } from '@/lib/api';
 
 export default function IdentityCore() {
   const [graphData, setGraphData] = useState<any>({ nodes: [], links: [] });
@@ -30,9 +31,11 @@ export default function IdentityCore() {
     updateDimensions();
 
     async function fetchGraph() {
+      if (!address) { setLoading(false); return; }
       try {
-        const res = await fetch(`http://localhost:8001/api/did/graph?address=${dummyAddress}`);
-        if (!res.ok) throw new Error('Failed to fetch graph data');
+        setLoading(true);
+        const res = await authenticatedFetch(`/api/did/graph?address=${dummyAddress}`);
+        if (!res.ok) throw new Error(`Failed to fetch graph data: ${res.status}`);
         const data = await res.json();
         
         // Add coordinates to avoid zero-start bunching
@@ -44,6 +47,7 @@ export default function IdentityCore() {
 
         setGraphData({ nodes, links: data.links });
         setStats(data.stats);
+        setError(null);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -53,7 +57,7 @@ export default function IdentityCore() {
 
     fetchGraph();
     return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
+  }, [address]);
 
   const getNodeColor = (group: number) => {
     switch(group) {

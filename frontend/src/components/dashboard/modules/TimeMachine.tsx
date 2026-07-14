@@ -13,6 +13,7 @@ export default function TimeMachine() {
 
   useEffect(() => {
     async function fetchTimeline() {
+      if (!address) { setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/privacy/time-machine?address=${dummyAddress}`);
         if (res.ok) {
@@ -26,7 +27,7 @@ export default function TimeMachine() {
       }
     }
     fetchTimeline();
-  }, []);
+  }, [address]);
 
   if (loading) {
     return (

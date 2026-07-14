@@ -13,6 +13,7 @@ export default function SecurityCenter() {
   const dummyAddress = address;
 
   const fetchData = async () => {
+    if (!address) { setLoading(false); return; }
     try {
       const [sessRes, auditRes, postureRes] = await Promise.all([
         fetch(`http://localhost:8001/api/dashboard/security/sessions?address=${dummyAddress}`),
@@ -41,7 +42,7 @@ export default function SecurityCenter() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [address]);
 
   const revokeSession = async (id: string) => {
     try {

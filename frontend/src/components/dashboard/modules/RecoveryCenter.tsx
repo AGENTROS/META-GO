@@ -13,6 +13,7 @@ export default function RecoveryCenter() {
 
   useEffect(() => {
     async function fetchRecovery() {
+      if (!address) { setLoading(false); return; }
       try {
         const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
         const res = await fetch(`${backend}/api/dashboard/recovery?address=${dummyAddress}`);
@@ -28,7 +29,7 @@ export default function RecoveryCenter() {
       }
     }
     fetchRecovery();
-  }, []);
+  }, [address]);
 
   return (
     <>
@@ -101,7 +102,7 @@ export default function RecoveryCenter() {
                     <div className="row-ic text-warning"><AlertTriangle size={16} /></div>
                     <div className="row-body">
                       <div className="row-title">Migrating to {sess.new_address.substring(0, 10)}...</div>
-                      <div className="row-desc">Approvals: {sess.approvals.length} / 2 required</div>
+                      <div className="row-desc">Approvals: {(sess.approvals || []).length} / 2 required</div>
                     </div>
                     <div className="stag warning">{sess.status}</div>
                   </div>

@@ -25,6 +25,7 @@ export default function AIGuardian() {
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim()) return;
+    if (!address) return;
 
     const userQuery = input.trim();
     setInput('');
@@ -105,7 +106,7 @@ export default function AIGuardian() {
                       </div>
                       <div style={{ flex: 2 }}>
                         <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>Recommended Actions</div>
-                        {msg.context.recommendations.length > 0 ? msg.context.recommendations.map((r:any, i:number) => (
+                        {(msg.context.recommendations || []).length > 0 ? (msg.context.recommendations || []).map((r:any, i:number) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', marginBottom: '8px', fontSize: '13px' }}>
                             <span>{r.action}</span>
                             <span className="text-success">{r.impact}</span>

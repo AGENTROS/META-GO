@@ -1,18 +1,20 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { Fingerprint, CheckCircle2, ShieldAlert, Cpu } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/api';
 
 export default function HumanityIndex() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { address } = useAccount();
 
   useEffect(() => {
     async function fetchData() {
+      if (!address) { setLoading(false); return; }
       try {
-        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
-        // Mock address to fetch data
-        const mockAddress = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-        const res = await fetch(`${backend}/api/did/trust?address=${mockAddress}`);
+        setLoading(true);
+        const res = await authenticatedFetch(`/api/did/trust?address=${address}`);
         if (res.ok) {
           const trustData = await res.json();
           setData(trustData);
@@ -24,7 +26,7 @@ export default function HumanityIndex() {
       }
     }
     fetchData();
-  }, []);
+  }, [address]);
 
   return (
     <>

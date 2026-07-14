@@ -143,6 +143,20 @@ async def log_vault_unlock(request: Request, address: str):
     await log_privacy_event(db, address, "Vault Unlocked via Biometric Check")
     return {"success": True}
 
+@router.delete("/api/privacy/vault/{item_id}")
+async def delete_vault_item(request: Request, item_id: str, address: str):
+    db, _ = await get_secure_context(request, address)
+    from bson import ObjectId
+    try:
+        res = await db.vault_items.delete_one({"_id": ObjectId(item_id), "owner_wallet": address.lower()})
+        if res.deleted_count > 0:
+            await log_privacy_event(db, address, "Vault Item Deleted")
+            return {"success": True}
+        else:
+            raise HTTPException(status_code=404, detail="Vault item not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid item ID")
+
 # ---------------------------------------------------------
 # Shared Credentials (Marketplace)
 # ---------------------------------------------------------

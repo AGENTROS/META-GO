@@ -1,4 +1,5 @@
-import React from 'react';
+'use client';
+import React, { use } from 'react';
 import { 
   ShieldCheck, AlertTriangle, Fingerprint, Coins, Award, Grid, Users, 
   Settings, Monitor, Mail, Link, Activity, Shield, Key
@@ -27,11 +28,11 @@ import HumanityIndex from '@/components/dashboard/modules/HumanityIndex';
 import GuardianManagement from '@/components/dashboard/modules/GuardianManagement';
 import IdentityMarketplace from '@/components/dashboard/modules/IdentityMarketplace';
 import LiveNetworkMonitor from '@/components/dashboard/modules/LiveNetworkMonitor';
+import Preferences from '@/components/dashboard/modules/Preferences';
 import IdentityPassport from '@/components/dashboard/IdentityPassport';
 
-
-export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
-  const resolvedParams = await params;
+export default function ModulePage({ params }: { params: Promise<{ module: string }> }) {
+  const resolvedParams = use(params);
   const moduleId = resolvedParams.module;
 
   // Format module ID to Title Case (e.g., 'threat-interception' -> 'Threat Interception')
@@ -69,13 +70,7 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
       case 'activity-timeline': return <TimeMachine />;
       case 'identity-replay': return <TimeMachine />;
       case 'did-mail': return <DIDMail />;
-      case 'settings': 
-        return (
-          <div className="empty-state">
-            <h4>Settings</h4>
-            <p>Preferences and configurations.</p>
-          </div>
-        );
+      case 'settings': return <Preferences />;
 
       default:
         // Generic fallback for any other module

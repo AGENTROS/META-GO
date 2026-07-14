@@ -1,17 +1,20 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { Link2, Layers, Zap } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/api';
 
 export default function CrossChainIdentity() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { address } = useAccount();
 
   useEffect(() => {
     async function fetchData() {
+      if (!address) { setLoading(false); return; }
       try {
-        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
-        const mockAddress = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-        const res = await fetch(`${backend}/api/ccip?address=${mockAddress}`);
+        setLoading(true);
+        const res = await authenticatedFetch(`/api/ccip?address=${address}`);
         if (res.ok) {
           setData(await res.json());
         }
@@ -22,7 +25,7 @@ export default function CrossChainIdentity() {
       }
     }
     fetchData();
-  }, []);
+  }, [address]);
 
   return (
     <>

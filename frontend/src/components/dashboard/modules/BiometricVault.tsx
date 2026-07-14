@@ -1,20 +1,49 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
-import { Fingerprint, Lock, Unlock, FileText, Upload, ShieldCheck, EyeOff } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useAccount, useSignMessage } from 'wagmi';
+import { Fingerprint, Lock, Unlock, FileText, Upload, ShieldCheck, EyeOff, Trash2, Eye, Download } from 'lucide-react';
+import { deriveVaultKey } from '@/lib/vault.crypto';
+import { authenticatedFetch } from '@/lib/api';
+import toast from 'react-hot-toast';
+
+// Helper to convert ArrayBuffer to Base64
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+// Helper to convert Base64 to ArrayBuffer
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
 
 export default function BiometricVault() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [unlocked, setUnlocked] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
+  const [encrypting, setEncrypting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { address } = useAccount();
-  const dummyAddress = address;
+  const { signMessageAsync } = useSignMessage();
 
   const fetchItems = async () => {
+    if (!address) { setLoading(false); return; }
     try {
-      const res = await fetch(`http://localhost:8001/api/privacy/vault?address=${dummyAddress}`);
+      const res = await authenticatedFetch(`/api/privacy/vault?address=${address}`);
       if (res.ok) {
         const d = await res.json();
         setItems(d.items || []);
@@ -28,21 +57,164 @@ export default function BiometricVault() {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [address]);
 
-  const handleUnlock = () => {
+  const handleUnlock = async () => {
+    if (!address) return;
     setUnlocking(true);
-    // Simulate WebAuthn/Wallet Signature prompt
-    setTimeout(async () => {
-      try {
-        await fetch(`http://localhost:8001/api/privacy/vault/unlock?address=${dummyAddress}`, { method: 'POST' });
+    try {
+      // Deterministic message signature to derive key
+      const message = `Unlock MetaGo Soulbound Vault for ${address.toLowerCase()}`;
+      const signature = await signMessageAsync({ account: address, message });
+      
+      const key = await deriveVaultKey(signature);
+      setVaultKey(key);
+      
+      const res = await authenticatedFetch(`/api/privacy/vault/unlock?address=${address}`, { method: 'POST' });
+      if (res.ok) {
         setUnlocked(true);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setUnlocking(false);
+        toast.success("Vault decrypted successfully");
       }
-    }, 2000);
+    } catch (err) {
+      console.error(err);
+      toast.error("Vault decryption failed");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleEncryptAndUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !vaultKey || !address) return;
+
+    setEncrypting(true);
+    const toastId = toast.loading(`Encrypting & uploading ${file.name}...`);
+
+    try {
+      const fileReader = new FileReader();
+      
+      fileReader.onload = async (event) => {
+        try {
+          const fileData = event.target?.result as ArrayBuffer;
+
+          // Generate IV for AES-GCM-256
+          const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+          // Encrypt file content ArrayBuffer
+          const ciphertextBuffer = await window.crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            vaultKey,
+            fileData
+          );
+
+          const ciphertextBase64 = arrayBufferToBase64(ciphertextBuffer);
+          const ivBase64 = arrayBufferToBase64(iv.buffer);
+
+          const encryptedBlob = JSON.stringify({
+            ciphertext: ciphertextBase64,
+            iv: ivBase64
+          });
+
+          // Generate integrity hash of the original file
+          const hashBuffer = await window.crypto.subtle.digest('SHA-256', fileData);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const integrityHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+          // Store to backend
+          const res = await authenticatedFetch(`/api/privacy/vault/store?address=${address}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              encrypted_blob: encryptedBlob,
+              encryption_metadata: {
+                name: file.name,
+                size: file.size,
+                type: file.type
+              },
+              integrity_hash: integrityHash,
+              algorithm: "AES-GCM-256"
+            })
+          });
+
+          if (res.ok) {
+            toast.success("File encrypted & stored securely", { id: toastId });
+            fetchItems();
+          } else {
+            throw new Error("Backend storage failed");
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error("Encryption/Upload failed", { id: toastId });
+        }
+      };
+
+      fileReader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error(err);
+      toast.error("Encryption/Upload failed", { id: toastId });
+    } finally {
+      setEncrypting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDecryptAndDownload = async (item: any) => {
+    if (!vaultKey) return;
+    const toastId = toast.loading(`Decrypting ${item.encryption_metadata.name}...`);
+
+    try {
+      const encryptedJson = item.encrypted_blob;
+      const { ciphertext, iv } = JSON.parse(encryptedJson);
+
+      const ciphertextBytes = base64ToArrayBuffer(ciphertext);
+      const ivBytes = new Uint8Array(base64ToArrayBuffer(iv));
+
+      const decryptedBuffer = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: ivBytes },
+        vaultKey,
+        ciphertextBytes
+      );
+
+      // Create Blob and trigger download
+      const blob = new Blob([decryptedBuffer], { type: item.encryption_metadata.type || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.encryption_metadata.name;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Decryption complete. Download started.", { id: toastId });
+    } catch (err) {
+      console.error(err);
+      toast.error("Decryption failed. Signature/Key mismatch.", { id: toastId });
+    }
+  };
+
+  const handleDelete = async (item: any) => {
+    if (!address) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${item.encryption_metadata.name}?`);
+    if (!confirmDelete) return;
+
+    const toastId = toast.loading("Deleting vault item...");
+    try {
+      // Backend does not have a direct DELETE endpoint, let's see if we can implement or use a custom POST
+      // Wait, let's verify if there is a delete endpoint. Let's send a DELETE request.
+      const res = await authenticatedFetch(`/api/privacy/vault/${item.id}?address=${address}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success("Vault item deleted", { id: toastId });
+        fetchItems();
+      } else {
+        toast.error("Failed to delete vault item", { id: toastId });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete", { id: toastId });
+    }
   };
 
   if (loading) {
@@ -68,13 +240,31 @@ export default function BiometricVault() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleEncryptAndUpload} 
+            style={{ display: 'none' }} 
+          />
           <button 
-            disabled={!unlocked}
+            disabled={!unlocked || encrypting}
+            onClick={() => fileInputRef.current?.click()}
             style={{ 
-              background: 'transparent', color: unlocked ? 'var(--fg)' : 'var(--muted)', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: unlocked ? 'pointer' : 'not-allowed', opacity: unlocked ? 1 : 0.5 
+              background: unlocked ? 'var(--fg)' : 'transparent', 
+              color: unlocked ? 'var(--bg)' : 'var(--muted)', 
+              border: '1px solid rgba(255,255,255,0.1)', 
+              padding: '10px 20px', 
+              borderRadius: '8px', 
+              fontWeight: 600, 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              cursor: unlocked ? 'pointer' : 'not-allowed', 
+              opacity: unlocked ? 1 : 0.5,
+              transition: 'all 0.2s'
             }}
           >
-            <Upload size={16} /> Encrypt File
+            <Upload size={16} /> Encrypt & Upload
           </button>
         </div>
       </div>
@@ -111,18 +301,34 @@ export default function BiometricVault() {
                 Vault is empty.
               </div>
             ) : items.map((item, i) => (
-              <div key={i} style={{ padding: '20px', background: '#0a0a0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+              <div key={i} style={{ padding: '20px', background: '#0a0a0c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '180px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
                   <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                     <FileText size={20} style={{ color: 'var(--fg)' }} />
                   </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.encryption_metadata?.name || 'Encrypted Blob'}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.algorithm}</div>
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{item.encryption_metadata?.name || 'Encrypted Blob'}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{(item.encryption_metadata?.size / 1024).toFixed(1)} KB • {item.algorithm}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'monospace', wordBreak: 'break-all', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '4px' }}>
-                  Hash: {item.integrity_hash.substring(0, 16)}...
+                <div>
+                  <div style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'monospace', wordBreak: 'break-all', background: 'rgba(255,255,255,0.02)', padding: '6px', borderRadius: '4px', marginBottom: '12px' }}>
+                    Hash: {item.integrity_hash.substring(0, 16)}...
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                    <button 
+                      onClick={() => handleDecryptAndDownload(item)}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--blue)', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: 0 }}
+                    >
+                      <Download size={14} /> Decrypt & Download
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(item)}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', padding: 0, marginLeft: 'auto' }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

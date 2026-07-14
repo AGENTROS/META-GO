@@ -18,6 +18,7 @@ export default function AvatarCenter() {
   const dummyAddress = address;
 
   const fetchHub = async () => {
+    if (!address) { setLoading(false); return; }
     try {
       const res = await fetch(`http://localhost:8001/api/dashboard/avatar/hub?address=${dummyAddress}`);
       if (res.ok) {
@@ -40,7 +41,7 @@ export default function AvatarCenter() {
     // 'deployment_started', 'deployment_finished', 'avatar_updated'
     const interval = setInterval(fetchHub, 10000); // Polling as fallback for WebSockets in this demo
     return () => clearInterval(interval);
-  }, []);
+  }, [address]);
 
   const handleDeploy = async (world: string) => {
     setDeployingTo(world);

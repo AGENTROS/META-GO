@@ -1,17 +1,20 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { Users, Shield, Cpu, Key } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/api';
 
 export default function GuardianManagement() {
   const [guardians, setGuardians] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { address } = useAccount();
 
   useEffect(() => {
     async function fetchData() {
+      if (!address) { setLoading(false); return; }
       try {
-        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
-        const mockAddress = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
-        const res = await fetch(`${backend}/api/dashboard/recovery?address=${mockAddress}`);
+        setLoading(true);
+        const res = await authenticatedFetch(`/api/dashboard/recovery?address=${address}`);
         if (res.ok) {
           const data = await res.json();
           setGuardians(data.guardians || [
@@ -28,7 +31,7 @@ export default function GuardianManagement() {
       }
     }
     fetchData();
-  }, []);
+  }, [address]);
 
   return (
     <>

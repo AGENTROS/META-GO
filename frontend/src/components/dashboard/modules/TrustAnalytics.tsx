@@ -13,6 +13,7 @@ export default function TrustAnalytics() {
 
   useEffect(() => {
     async function fetchAnalytics() {
+      if (!address) { setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/dashboard/intelligence/analytics?address=${dummyAddress}`);
         if (res.ok) {
@@ -26,7 +27,7 @@ export default function TrustAnalytics() {
       }
     }
     fetchAnalytics();
-  }, []);
+  }, [address]);
 
   if (loading || !data) {
     return (

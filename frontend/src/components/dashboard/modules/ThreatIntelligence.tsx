@@ -12,6 +12,7 @@ export default function ThreatIntelligence() {
 
   useEffect(() => {
     async function fetchThreats() {
+      if (!address) { setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/dashboard/intelligence/threats?address=${dummyAddress}`);
         if (res.ok) {
@@ -29,7 +30,7 @@ export default function ThreatIntelligence() {
     // Fallback polling for live threat detection
     const interval = setInterval(fetchThreats, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [address]);
 
   if (loading) {
     return (

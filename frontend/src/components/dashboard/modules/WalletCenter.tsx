@@ -36,7 +36,7 @@ export default function WalletCenter() {
       }
     }
     fetchData();
-  }, []);
+  }, [address]);
 
   return (
     <>
@@ -72,7 +72,7 @@ export default function WalletCenter() {
             <div className="stat-card">
               <div className="stat-label">Primary ENS</div>
               <div className="stat-value" style={{ fontSize: '18px' }}>{walletData?.ens || 'Not Set'}</div>
-              <div className="stat-trend flat">Resolves to {dummyAddress.substring(0,5)}...</div>
+              <div className="stat-trend flat">Resolves to {dummyAddress ? `${dummyAddress.substring(0,5)}...` : "—"}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">Current Chain</div>

@@ -23,6 +23,7 @@ export default function ThreatInterception() {
 
   useEffect(() => {
     async function fetchThreats() {
+      if (!address) { setLoading(false); return; }
       try {
         // Fetch from the real FastAPI backend
         // Use a relative path assuming Next.js rewrites or same-origin, 
@@ -42,7 +43,7 @@ export default function ThreatInterception() {
       }
     }
     fetchThreats();
-  }, []);
+  }, [address]);
 
   return (
     <>

@@ -59,11 +59,11 @@ export default function DashboardCommandCenter() {
     );
   }
 
-  const activeSBTs = soulboundTokens.filter(t => t.status === 'VALID');
-  const activeCredentials = credentials.filter(c => c.revocationStatus === 'VALID');
+  const activeSBTs = (soulboundTokens || []).filter(t => t.status === 'VALID');
+  const activeCredentials = (credentials || []).filter(c => c.revocationStatus === 'VALID');
   const trustScore = identityMetrics?.trustScore ?? null;
   const humanityScore = identityMetrics?.sovereignty ?? null;
-  const unreadNotifs = notifications.filter(n => !n.read).length;
+  const unreadNotifs = (notifications || []).filter(n => !n.read).length;
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
 
   return (
@@ -148,7 +148,7 @@ export default function DashboardCommandCenter() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Trust Peers</span>
-              <span style={{ color: '#fff', fontWeight: 'bold' }}>{peers.length}</span>
+              <span style={{ color: '#fff', fontWeight: 'bold' }}>{(peers || []).length}</span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -169,12 +169,12 @@ export default function DashboardCommandCenter() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--muted)', fontSize: '13px' }}>SBT Portfolio</span>
-              <span style={{ color: '#fff', fontWeight: 'bold' }}>{soulboundTokens.length} tokens</span>
+              <span style={{ color: '#fff', fontWeight: 'bold' }}>{(soulboundTokens || []).length} tokens</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--muted)', fontSize: '13px' }}>Domains</span>
               <span style={{ color: '#fff', fontWeight: 'bold' }}>
-                {[...new Set(soulboundTokens.map(s => s.domain))].length || '—'}
+                {[...new Set((soulboundTokens || []).map(s => s.domain))].length || '—'}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>

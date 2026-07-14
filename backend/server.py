@@ -618,6 +618,8 @@ async def verify_auth_address(request: Request, wallet_address: str):
     
     expires_val = sess.get("expiresAt", 0)
     if isinstance(expires_val, datetime):
+        if expires_val.tzinfo is None:
+            expires_val = expires_val.replace(tzinfo=timezone.utc)
         is_expired = expires_val < datetime.now(timezone.utc)
     elif isinstance(expires_val, (int, float)):
         is_expired = expires_val < time.time()
@@ -846,9 +848,17 @@ async def auth_verify(body: VerifyBody, response: Response, request: Request):
     # Log SIWE login audit trail
     await log_audit_event("login", addr_lower, {"ip": ip, "userAgent": user_agent})
 
+    role = "user"
+    user_data = await db.users.find_one({"walletAddress": addr_lower})
+    if user_data:
+        role = user_data.get("role", "user")
+        if user_data.get("handle") == "admin":
+            role = "admin"
+
     token_payload = {
         "walletAddress": addr_lower,
         "session_token": session_token,
+        "role": role,
         "exp": time.time() + 900 # 15 minutes access token expiry
     }
     jwt_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
@@ -889,6 +899,8 @@ async def auth_refresh(response: Response, request: Request, body: Optional[Refr
         
     expires_at = rt_record["expiresAt"]
     if isinstance(expires_at, datetime):
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
         is_expired = expires_at < datetime.now(timezone.utc)
     else:
         is_expired = expires_at < time.time()
@@ -912,9 +924,17 @@ async def auth_refresh(response: Response, request: Request, body: Optional[Refr
         "expiresAt": new_expires_at
     })
     
+    role = "user"
+    user_data = await db.users.find_one({"walletAddress": wallet})
+    if user_data:
+        role = user_data.get("role", "user")
+        if user_data.get("handle") == "admin":
+            role = "admin"
+
     token_payload = {
         "walletAddress": wallet,
         "session_token": rt_record["sessionToken"],
+        "role": role,
         "exp": time.time() + 900
     }
     jwt_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
@@ -1834,12 +1854,12 @@ def get_aasist_spoof_model():
             aasist_spoof_model = stub
         else:
             try:
-                from .aasist_voice_spoof import AasistVoiceSpoof
-                aasist_spoof_model = AasistVoiceSpoof()
+                from .aasist_voice_spoof import AasistVoiceSpoofer
+                aasist_spoof_model = AasistVoiceSpoofer()
             except Exception:
                 class Stub:
-                    def evaluate_spoof(self, audio_bytes):
-                        return 5.0, 0.02, 0.01
+                    def check_spoof(self, audio_bytes):
+                        return True, 95.0, "Stub human voice"
                 aasist_spoof_model = Stub()
     return aasist_spoof_model
 
@@ -1883,18 +1903,56 @@ def get_risk_engine():
                 risk_engine = Stub()
     return risk_engine
 
-CHALLENGE_PHRASES = [
-    "I authorize secure identity verification",
-    "My biometric identity is genuine",
-    "Verify my sovereign identity",
-    "Biometric attestation authorized by me",
-    "Secure sovereign ledger check sequence"
-]
+from .challenge_provider import get_challenges
 
 @app.get("/api/user/biometrics/challenge")
-async def biometrics_challenge():
-    phrase = random.choice(CHALLENGE_PHRASES)
-    return {"ok": True, "challenge": phrase}
+async def biometrics_challenge(count: int = 1, address: str = ""):
+    # Ensure count is reasonable
+    count = max(1, min(10, count))
+    phrases = get_challenges(address, count=count)
+    if count == 1:
+        return {"ok": True, "challenge": phrases[0]}
+    return {"ok": True, "challenges": phrases}
+
+class VoiceRegistrationBody(BaseModel):
+    walletAddress: str
+    recordings: List[str]  # list of base64 audio recordings
+
+@app.post("/api/user/biometrics/register-voice")
+async def register_voice(body: VoiceRegistrationBody, request: Request):
+    addr = body.walletAddress.lower()
+    await verify_auth_address(request, addr)
+    
+    embeddings = []
+    from .ecapa_speaker_verifier import encrypt_template
+    
+    for b64 in body.recordings:
+        if "," in b64:
+            b64 = b64.split(",")[1]
+        try:
+            import base64
+            audio_bytes = base64.b64decode(b64)
+            emb = get_ecapa_speaker_model().extract_embedding(audio_bytes)
+            if emb:
+                embeddings.append(emb)
+        except Exception as e:
+            continue
+            
+    if not embeddings:
+        raise HTTPException(status_code=400, detail="Failed to extract voice features from recordings")
+        
+    template = get_ecapa_speaker_model().build_combined_template(embeddings)
+    if not template:
+        raise HTTPException(status_code=400, detail="Failed to build voice template")
+        
+    enc_template = encrypt_template(template)
+    
+    await db.users.update_one(
+        {"walletAddress": addr},
+        {"$set": {"voiceprintEncrypted": enc_template}}
+    )
+    
+    return {"ok": True, "message": "Voice registered securely"}
 
 @app.post("/api/user/biometrics/verify-pipeline")
 async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Request):
@@ -1963,6 +2021,7 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
         ai_voice_prob = 2.0
         replay_prob = 3.0
         transcribed_text = ""
+        voice_error = None
         
         if body.audio:
             base64_audio = body.audio
@@ -1974,21 +2033,42 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
             expected = body.passphraseChallenge or "I authorize secure identity verification"
             transcribed_text, speech_accuracy, voice_confidence = get_whisper_stt_model().transcribe_and_verify(audio_bytes, expected)
             
+            if speech_accuracy < 60:
+                voice_error = f"Speech not recognized clearly. Expected: '{expected}'."
+            
             # ECAPA speaker verification
-            current_vp = get_ecapa_speaker_model().extract_voiceprint(audio_bytes)
-            if user and "voiceprint" in user:
-                stored_vp = user["voiceprint"]
-                voice_match = ecapa_speaker_model.verify_speaker(current_vp, stored_vp)
+            current_emb = get_ecapa_speaker_model().extract_embedding(audio_bytes)
+            if user and "voiceprintEncrypted" in user:
+                from .ecapa_speaker_verifier import decrypt_template
+                stored_template = decrypt_template(user["voiceprintEncrypted"])
+                if stored_template:
+                    voice_match = get_ecapa_speaker_model().verify_speaker(current_emb, stored_template)
+                else:
+                    voice_match = 0.0
+                    voice_error = "Failed to decrypt voice template."
+            elif user and "voiceprint" in user:
+                # Legacy fallback
+                voice_match = get_ecapa_speaker_model().verify_speaker(current_emb, user["voiceprint"])
             else:
                 voice_match = 100.0
-                if user:
-                    await db.users.update_one(
-                        {"walletAddress": addr},
-                        {"$set": {"voiceprint": current_vp}}
-                    )
+                
+            if voice_match < 55:
+                voice_error = "Voice does not match enrolled user."
+            elif voice_match < 75:
+                voice_error = "Voice match borderline — consider repeating challenge."
             
             # AASIST anti-spoofing
-            voice_spoof_risk, ai_voice_prob, replay_prob = get_aasist_spoof_model().evaluate_spoof(audio_bytes)
+            is_human, liveness_score, liveness_reason = get_aasist_spoof_model().check_spoof(audio_bytes)
+            voice_spoof_risk = max(0.0, 100.0 - liveness_score)
+            ai_voice_prob = voice_spoof_risk * 0.8
+            replay_prob = voice_spoof_risk * 0.2
+            if not is_human:
+                voice_error = f"Spoof detected: {liveness_reason}"
+        
+        # Override trust_score calculation internally for voice_error
+        if voice_error:
+            trust_score = 0.0
+            risk_level = "HIGH RISK"
 
         # 5. Risk Scoring Engine (Aggregate All Scores)
         trust_score, risk_level, risk_breakdown = get_risk_engine().calculate_trust_score(
@@ -2070,6 +2150,7 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
             "trustScore": trust_score,
             "riskLevel": risk_level,
             "match": bool(risk_level != "HIGH RISK"),
+            "voiceError": voice_error,
             "metrics": {
                 "faceMatch": face_match,
                 "faceConfidence": face_confidence,
@@ -2086,7 +2167,8 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
                 "occlusions": occlusions_detected,
                 "blurScore": blur_score,
                 "lightingAnomaly": lighting_anomaly,
-                "transcribedText": transcribed_text
+                "transcribedText": transcribed_text,
+                "voiceError": voice_error
             },
             "visuals": {
                 "spectrogram": freq_data,
@@ -2641,6 +2723,16 @@ async def billing_subscription(address: str):
 
 @app.get("/api/admin/metrics")
 async def admin_metrics(request: Request):
+    token = get_session(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    sess = await db.sessions.find_one({"token": token})
+    if not sess:
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
+    user = await db.users.find_one({"walletAddress": sess["walletAddress"]})
+    if not user or (user.get("role") != "admin" and user.get("handle") != "admin"):
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+
     total_users = await db.users.count_documents({})
     total_sbts = await db.sbts.count_documents({})
     total_proofs = await db.zk_proofs.count_documents({})
