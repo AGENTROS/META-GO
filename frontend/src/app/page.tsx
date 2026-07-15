@@ -377,10 +377,26 @@ export default function Home() {
       position:relative; 
       cursor:pointer;
       outline:none;
-      transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+      transition: background 0.3s ease, transform 0.3s ease;
     }
     .lp-step:last-child { border-right:1px solid var(--cb); border-radius:0 14px 14px 0; }
     .lp-step:first-child { border-radius:14px 0 0 14px; }
+    
+    /* Overlay for GPU-accelerated smooth border fades without layout shifts */
+    .lp-step::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border: 1px solid #9b5bff;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .lp-step:first-child::after { border-radius:14px 0 0 14px; }
+    .lp-step:last-child::after { border-radius:0 14px 14px 0; border-right:1px solid rgba(155, 91, 255, 0.6); }
+
     .lp-step::before { content:""; position:absolute; top:36px; right:-9px; width:18px; height:1px; border-top:1.5px dashed rgba(255,255,255,0.2); z-index:2; transition: opacity 0.3s ease; }
     .lp-step:last-child::before { display:none; }
     .lp-step-num { font-size:12.5px; font-weight:800; color:var(--purple); margin-bottom:14px; letter-spacing:0.02em; transition: all 0.3s ease; }
@@ -389,14 +405,20 @@ export default function Home() {
     .lp-step p { font-size:11.5px; color:var(--dim); line-height:1.5; transition: all 0.3s ease; }
 
     .lp-step:hover {
-      border-color: rgba(155, 91, 255, 0.4);
       background: #111428;
     }
+    .lp-step:hover::after {
+      opacity: 0.45;
+      border-color: rgba(155, 91, 255, 0.6);
+    }
     .lp-step.active, .lp-step:focus-visible {
-      border: 1px solid #9b5bff !important;
       background: #111428;
-      box-shadow: 0 0 20px rgba(155, 91, 255, 0.25), inset 0 0 12px rgba(155, 91, 255, 0.15);
       z-index: 10;
+    }
+    .lp-step.active::after, .lp-step:focus-visible::after {
+      opacity: 1 !important;
+      border-color: #9b5bff !important;
+      box-shadow: 0 0 20px rgba(155, 91, 255, 0.25), inset 0 0 12px rgba(155, 91, 255, 0.15);
     }
     .lp-step.active {
       transform: translateY(-2px);
@@ -433,8 +455,11 @@ export default function Home() {
       opacity: 0;
       transform: scale(0.8);
       background: rgba(155, 91, 255, 0.1);
+      z-index: 6;
     }
-    .lp-step:hover .lp-step-indicator, .lp-step.active .lp-step-indicator {
+    
+    /* Plus indicator is strictly bound to the active step */
+    .lp-step.active .lp-step-indicator {
       opacity: 1;
       transform: scale(1);
       border-color: var(--purple);
