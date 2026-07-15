@@ -12,6 +12,29 @@ import { clsx } from 'clsx';
 
 import { useShallow } from 'zustand/shallow';
 
+function LogoMark({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none"
+      style={{ filter: 'drop-shadow(0 0 6px rgba(107,91,255,0.6))' }}>
+      <defs>
+        <linearGradient id="lgoG" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#4f7bff" />
+          <stop offset="55%" stopColor="#8f6bff" />
+          <stop offset="100%" stopColor="#c56bff" />
+        </linearGradient>
+      </defs>
+      <circle cx="16" cy="16" r="11" fill="url(#lgoG)" />
+      <g stroke="#0b0d18" strokeWidth="0.9" opacity="0.55" fill="none">
+        <ellipse cx="16" cy="16" rx="11" ry="4.2" />
+        <ellipse cx="16" cy="16" rx="4.2" ry="11" />
+        <path d="M6.2 11.2c4 2.6 15.6 2.6 19.6 0M6.2 20.8c4-2.6 15.6-2.6 19.6 0" />
+      </g>
+      <ellipse cx="16" cy="17" rx="15" ry="5" transform="rotate(-16 16 17)"
+        stroke="#dfe6ff" strokeWidth="1.1" fill="none" opacity="0.9" />
+    </svg>
+  );
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
