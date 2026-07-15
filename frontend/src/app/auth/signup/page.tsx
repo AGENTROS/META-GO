@@ -119,6 +119,11 @@ export default function SignupPage() {
   ];
   
   const currentActiveIndex = step === 5 ? (consentVoice ? 5 : 4) : step === 4 ? (consentVoice ? 4 : 3) : step;
+  
+  const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const isEmailEmpty = email.trim() === '';
+  const isEmailValid = EMAIL_REGEX.test(email);
+  const showEmailError = !isEmailEmpty && !isEmailValid;
 
   async function checkHandle(val: string) {
     setHandle(val);
@@ -334,7 +339,11 @@ export default function SignupPage() {
                       </div>
 
                       {/* Email */}
-                      <div className="relative h-14 rounded-2xl border border-white/[0.08] bg-white/[0.02] flex items-center px-4 focus-within:border-[#7B61FF]/65 focus-within:ring-2 focus-within:ring-[#7B61FF]/15 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
+                      <div className={`relative h-14 rounded-2xl border bg-white/[0.02] flex items-center px-4 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)] ${
+                        showEmailError 
+                          ? 'border-red-500/50 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500/15' 
+                          : 'border-white/[0.08] focus-within:border-[#7B61FF]/65 focus-within:ring-2 focus-within:ring-[#7B61FF]/15'
+                      }`}>
                         <Mail size={18} className="text-white/40 mr-3" />
                         <input 
                           type="email"
@@ -344,10 +353,16 @@ export default function SignupPage() {
                           className="bg-transparent border-none outline-none flex-1 text-white placeholder:text-white/30 text-sm font-medium"
                           data-testid="email-input"
                         />
-                        <div className="w-5 h-5 rounded bg-[#7B61FF]/15 border border-[#7B61FF]/30 flex items-center justify-center text-[10px] text-[#7B61FF] font-bold font-mono select-none">
-                          t
+                        <div className="flex items-center ml-2">
+                          {!isEmailEmpty && isEmailValid && <CheckCircle size={16} className="text-[#00E59B]" />}
+                          {showEmailError && <XCircle size={16} className="text-red-500" />}
                         </div>
                       </div>
+                      {showEmailError && (
+                        <p className="text-[11px] text-red-400 font-medium px-1 mt-[-12px]">
+                          Please enter a valid email address.
+                        </p>
+                      )}
 
                       {/* Password */}
                       <div className="relative h-14 rounded-2xl border border-white/[0.08] bg-white/[0.02] flex items-center px-4 focus-within:border-[#7B61FF]/65 focus-within:ring-2 focus-within:ring-[#7B61FF]/15 transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
@@ -470,7 +485,7 @@ export default function SignupPage() {
                     {/* Primary Button */}
                     <button 
                       onClick={() => setStep(1)} 
-                      disabled={handleStatus !== 'available' || !email || !password || !consentAccepted}
+                      disabled={handleStatus !== 'available' || !isEmailValid || !password || !consentAccepted}
                       className="w-full h-14 bg-gradient-to-r from-[#FF3CAC] via-[#7B61FF] to-[#3AA0FF] hover:opacity-95 text-white font-extrabold text-xs rounded-2xl flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 disabled:shadow-none shadow-[0_0_20px_rgba(123,97,255,0.3)] hover:shadow-[0_0_25px_rgba(123,97,255,0.55)] hover:scale-[1.01]"
                       data-testid="step-handle-next"
                     >

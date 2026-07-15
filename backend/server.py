@@ -449,6 +449,43 @@ def normalize_and_validate_handle(handle: str) -> str:
     return h_norm
 
 
+# Email Validation & Sanitization helper to prevent XSS/Injection
+def normalize_and_validate_email(email: Optional[str]) -> Optional[str]:
+    if not email:
+        return None
+        
+    e_norm = email.strip()
+    
+    # 1. Strict regex validation for email structure
+    email_regex = r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+    if not re.match(email_regex, e_norm):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "error": "INVALID_EMAIL_FORMAT",
+                "message": "Please provide a valid email address."
+            }
+        )
+        
+    # 2. XSS prevention (HTML entity escaping)
+    import html
+    e_norm = html.escape(e_norm)
+    
+    # 3. Maximum length validation (RFC 5321)
+    if len(e_norm) > 254:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "error": "INVALID_EMAIL_LENGTH",
+                "message": "Email address must be under 254 characters."
+            }
+        )
+        
+    return e_norm
+
+
 # MongoDB Transaction runner with strict rollback on failure
 async def run_registration_transaction(addr, handle_norm, user_doc, audit_doc, did_doc):
     try:
@@ -1079,6 +1116,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
         
     await verify_auth_address(request, addr)
     h_norm = normalize_and_validate_handle(body.handle)
+    email_norm = normalize_and_validate_email(body.email)
     
     # ── DISTRIBUTED LOCKS ──
     handle_lock = get_lock(f"handle:{h_norm}", lease_time_ms=10000)
@@ -1373,7 +1411,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
             "walletAddress": addr,
             "handle": h_norm,
             "handle_normalized": h_norm,
-            "email": body.email,
+            "email": email_norm,
             "voiceHash": body.voiceHash,
             "did": body.did,
             "identity_commitment": commitment,
@@ -1598,6 +1636,7 @@ async def reserve_username(body: ReserveUsernameBody, request: Request):
     await verify_auth_address(request, addr)
     
     h_norm = normalize_and_validate_handle(body.handle)
+    email_norm = normalize_and_validate_email(body.email)
     
     lock = get_lock(f"handle:{h_norm}", lease_time_ms=5000)
     acquired = await lock.acquire(timeout_sec=3.0)
@@ -1640,7 +1679,7 @@ async def reserve_username(body: ReserveUsernameBody, request: Request):
         await db.username_reservations.insert_one({
             "handle": h_norm,
             "walletAddress": addr,
-            "email": body.email,
+            "email": email_norm,
             "createdAt": _now_iso(),
             "expiresAt": expires_at_iso
         })
