@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { SiweMessage } from 'siwe';
 
 import { setJWTToken } from '@/lib/tokenManager';
-import { BACKEND_URL } from '@/lib/api';
+import { BACKEND_URL, authenticatedFetch } from '@/lib/api';
 
 export function useSIWE() {
   const { address, chainId } = useAccount();
@@ -16,8 +16,20 @@ export function useSIWE() {
     setIsLoading(true);
     try {
       const backend = BACKEND_URL;
-      const nonceRes = await fetch(`${backend}/api/auth/nonce`, { credentials: 'include' });
-      if (!nonceRes.ok) throw new Error('Failed to fetch nonce');
+      console.debug('[useSIWE] BACKEND_URL=', backend);
+      // Use centralized authenticatedFetch to handle CORS, retries and refresh orchestration
+      let nonceRes: Response;
+      try {
+        nonceRes = await authenticatedFetch('/api/auth/nonce', { method: 'GET' });
+      } catch (err) {
+        console.error('[useSIWE] authenticatedFetch nonce failed:', err);
+        throw new Error('Network error fetching nonce');
+      }
+      if (!nonceRes.ok) {
+        const txt = await nonceRes.text().catch(() => '');
+        console.error('[useSIWE] nonce response not ok', nonceRes.status, txt);
+        throw new Error('Failed to fetch nonce');
+      }
       const { nonce } = await nonceRes.json();
 
       const message = new SiweMessage({
@@ -34,13 +46,22 @@ export function useSIWE() {
       const prepared = message.prepareMessage();
       const signature = await signMessageAsync({ account: address, message: prepared });
 
-      const verifyRes = await fetch(`${backend}/api/auth/verify`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prepared, signature }),
-      });
-      if (!verifyRes.ok) throw new Error('SIWE verification failed');
+      let verifyRes: Response;
+      try {
+        verifyRes = await authenticatedFetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: prepared, signature }),
+        });
+      } catch (err) {
+        console.error('[useSIWE] authenticatedFetch verify failed:', err);
+        throw new Error('Network error during SIWE verify');
+      }
+      if (!verifyRes.ok) {
+        const txt = await verifyRes.text().catch(() => '');
+        console.error('[useSIWE] verify response not ok', verifyRes.status, txt);
+        throw new Error('SIWE verification failed');
+      }
       const data = await verifyRes.json();
       if (data.token) {
         setJWTToken(data.token);
@@ -53,3 +74,5 @@ export function useSIWE() {
 
   return { signIn, isLoading };
 }
+
+

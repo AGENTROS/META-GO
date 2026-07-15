@@ -855,7 +855,7 @@ async def auth_nonce(response: Response, request: Request):
     ip = request.client.host if request.client else "unknown"
     check_rate_limit("auth_nonce", ip, 20)
     nonce = secrets.token_hex(16)
-    response.set_cookie(NONCE_COOKIE, nonce, httponly=True, samesite="none", secure=True, max_age=90, path="/")
+    response.set_cookie(NONCE_COOKIE, nonce, httponly=True, samesite="none", secure=cfg.is_production(), max_age=90, path="/")
     return {"nonce": nonce}
 
 
@@ -940,8 +940,8 @@ async def auth_verify(body: VerifyBody, response: Response, request: Request):
     }
     jwt_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
     
-    response.set_cookie(SESSION_COOKIE, session_token, httponly=True, samesite="none", secure=True, max_age=900, path="/")
-    response.set_cookie("metago_refresh", refresh_token, httponly=True, samesite="none", secure=True, max_age=604800, path="/")
+    response.set_cookie(SESSION_COOKIE, session_token, httponly=True, samesite="none", secure=cfg.is_production(), max_age=900, path="/")
+    response.set_cookie("metago_refresh", refresh_token, httponly=True, samesite="none", secure=cfg.is_production(), max_age=604800, path="/")
     return {"ok": True, "address": addr_lower, "token": jwt_token, "refreshToken": refresh_token}
 
 
@@ -1021,8 +1021,8 @@ async def auth_refresh(response: Response, request: Request, body: Optional[Refr
         {"$set": {"lastActivityAt": _now_iso(), "ipAddress": ip}}
     )
     
-    response.set_cookie(SESSION_COOKIE, rt_record["sessionToken"], httponly=True, samesite="none", secure=True, max_age=900, path="/")
-    response.set_cookie("metago_refresh", new_refresh_token, httponly=True, samesite="none", secure=True, max_age=604800, path="/")
+    response.set_cookie(SESSION_COOKIE, rt_record["sessionToken"], httponly=True, samesite="none", secure=cfg.is_production(), max_age=900, path="/")
+    response.set_cookie("metago_refresh", new_refresh_token, httponly=True, samesite="none", secure=cfg.is_production(), max_age=604800, path="/")
     
     await log_audit_event("token_refresh", wallet, {"ip": ip})
     return {"ok": True, "token": jwt_token, "refreshToken": new_refresh_token}
