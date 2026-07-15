@@ -23,19 +23,31 @@ class FaceLivenessStub:
 
 class WhisperStub:
     def transcribe_and_verify(self, audio_bytes, expected):
-        # return transcription, accuracy (0-1), confidence (0-1)
-        return expected or "", 1.0, 0.99
+        return expected or "", 98.0, 95.0
 
 class EcapaStub:
+    def extract_embedding(self, audio_bytes):
+        return {
+            "type": "stub",
+            "embedding": [0.5] * 192,
+            "features": None
+        }
     def extract_voiceprint(self, audio_bytes):
-        return hashlib.sha1(audio_bytes).hexdigest()
-    def verify_speaker(self, a, b):
-        return 1.0 if a == b else 0.0
+        return self.extract_embedding(audio_bytes)
+    def verify_speaker(self, current_embedding, stored_template):
+        return 95.0
+    def build_combined_template(self, embeddings):
+        return {
+            "type": "stub",
+            "embedding": [0.5] * 192,
+            "features": None
+        }
 
 class AasistStub:
+    def check_spoof(self, audio_bytes):
+        return True, 99.0, "Verified human voice"
     def evaluate_spoof(self, audio_bytes):
-        # voice_spoof_risk, ai_voice_prob, replay_prob
-        return 5.0, 0.02, 0.01
+        return 1.0, 0.02, 0.01
 
 class DeepfakeStub:
     def predict_risk(self, img):

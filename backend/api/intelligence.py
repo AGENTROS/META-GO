@@ -124,35 +124,93 @@ async def ask_ai_guardian(request: Request, address: str, body: AskRequest):
     db, _ = await get_secure_context(request, address)
     context = await build_context(db, address)
     
-    query = body.query.lower()
-    
-    # Intent Classifier (Basic Rule-Based for Phase 1)
+    query = body.query.lower().strip()
     response_text = ""
     structured_data = None
-    
-    if "trust" in query or "score" in query:
-        response_text = RuleEngine.explain_trust(context)
+
+    # 1. Greetings & Capabilities
+    if any(greet in query for greet in ["hi", "hello", "hey", "who are you", "what can you do", "help"]):
+        response_text = (
+            "I am your MetaGo AI Identity Guardian. I monitor your trust score, humanity index, and security logs in real time. "
+            "You can ask me to:\n"
+            "- Explain your current **Trust Score**\n"
+            "- Check your **Humanity Index** and biometric status\n"
+            "- List recent **security alerts** or active sessions\n\n"
+            "*Note: For security reasons, I am strictly sandboxed to audit requests regarding your sovereign identity and cannot answer general-purpose questions.*"
+        )
+        structured_data = {
+            "capabilities": ["explain_trust", "check_humanity", "list_alerts"]
+        }
+
+    # 2. Trust Score & recommendations
+    elif any(keyword in query for keyword in ["trust", "score", "explain", "recommend", "what can you do"]):
+        explanation = RuleEngine.explain_trust(context)
+        recs = RuleEngine.get_recommendations(context)
+        recs_str = "\n".join([f"- **{r['action']}** (Impact: {r['impact']})" for r in recs])
+        
+        response_text = f"{explanation}\n\n"
+        if recs:
+            response_text += f"**Recommendations to improve your score:**\n{recs_str}"
+        else:
+            response_text += "Great job! You have no outstanding security recommendations."
+            
         structured_data = {
             "score": context["trust_score"],
-            "recommendations": RuleEngine.get_recommendations(context)
+            "recommendations": recs
         }
-    elif "humanity" in query:
-        response_text = f"Your Humanity Score is {context['humanity_score']}%. This is derived directly from your biometric verification status and zero-knowledge proof attestation."
-        structured_data = {"score": context["humanity_score"]}
-    elif "security" in query or "alert" in query or "threat" in query:
+
+    # 3. Humanity score & Biometric verification details
+    elif any(keyword in query for keyword in ["humanity", "biometric", "face", "voice", "identity state"]):
+        user = context["user"]
+        face_status = "✅ ACTIVE" if user.get("face_verified") else "❌ INACTIVE"
+        voice_status = "✅ ACTIVE" if user.get("voice_verified") else "❌ INACTIVE"
+        
+        response_text = (
+            f"Your **Humanity Score** is currently **{context['humanity_score']}%**.\n\n"
+            f"**Biometric Pipeline Status:**\n"
+            f"- Face Verification: {face_status}\n"
+            f"- Voice Print: {voice_status}\n\n"
+            "This score represents your probability of being a verified unique human actor. You can raise it by verifying any remaining biometrics."
+        )
+        structured_data = {
+            "score": context["humanity_score"],
+            "face_verified": user.get("face_verified", False),
+            "voice_verified": user.get("voice_verified", False)
+        }
+
+    # 4. Security status, active alerts and audit logs
+    elif any(keyword in query for keyword in ["security", "alert", "threat", "session", "log"]):
         high_risk = [l for l in context["audit_logs"] if l.get("risk") == "High"]
+        recent_events = "\n".join([f"- {l.get('event', 'Audit event')} ({l.get('time', 'unknown')}) [Risk: {l.get('risk', 'Low')}]" for l in context["audit_logs"][:3]])
+        
+        response_text = f"**Current Security Audit:**\n"
         if high_risk:
-            response_text = f"I detected {len(high_risk)} high-risk event(s) in your recent audit logs, including '{high_risk[0].get('event', 'Unknown')}'. I recommend reviewing your active sessions immediately."
-            structured_data = {"threats": high_risk}
+            response_text += (
+                f"🚨 **WARNING:** I detected {len(high_risk)} high-risk event(s) in your recent logs. "
+                f"Specifically: '{high_risk[0].get('event', 'unknown')}' from IP {high_risk[0].get('ip', 'unknown')}. "
+                "I strongly advise reviewing your active sessions and rotating keys.\n\n"
+            )
         else:
-            response_text = "Your security posture looks healthy. No high-risk events found in your recent audit logs."
-            structured_data = {"threats": []}
+            response_text += "🟢 Your security posture is healthy. No high-risk threats detected in your recent audit logs.\n\n"
+            
+        if recent_events:
+            response_text += f"**Recent Audit Logs:**\n{recent_events}"
+            
+        structured_data = {
+            "threats": high_risk,
+            "recent_logs": context["audit_logs"][:3]
+        }
+
+    # 5. Sandboxed / Rejected prompts (dimag and restriction)
     else:
-        response_text = f"I am your AI Identity Guardian. Based on your current context, your Trust Score is {context['trust_score']}. How can I assist you further?"
-        
-    # Phase 2 Optional LLM integration would hook in right here,
-    # passing `response_text` and `structured_data` to OpenAI to be polished.
-        
+        response_text = (
+            "⚠️ **Access Denied (Sandbox Restriction):** As a localized security agent, I am locked down to MetaGo sovereign identity operations. "
+            "I do not have access to general knowledge or capabilities outside of auditing your biometrics, trust score, and security logs."
+        )
+        structured_data = {
+            "restricted": True
+        }
+
     return {
         "reply": response_text,
         "context_snapshot": structured_data

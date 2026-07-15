@@ -171,46 +171,10 @@ _FIXED_CORPUS = [
 # ---------------------------------------------------------------------------
 def _generate_corpus() -> List[str]:
     """
-    Generate a large corpus of 10,000+ unique phrases from vocabulary templates.
+    Return the fixed corpus of high-quality phrases.
     """
-    generated = set()
-    result = list(_FIXED_CORPUS)
-    generated.update(result)
+    return list(_FIXED_CORPUS)
 
-    templates = [
-        "{subject} {verb} {object} {adverb}",
-        "{subject} {verb} {object} {location}",
-        "{adverb} {subject} {verb} {object}",
-        "{subject} {adverb} {verb} {object}",
-        "I authorize {subject} to {verb} {object} {location}",
-        "The {location} {adverb} {verb} {object}",
-        "{subject} {verb} {object} and {adverb} confirms {location}",
-        "My voice {adverb} {verb} {object} {location}",
-        "This session {verb} {object} {adverb} {location}",
-        "{adverb} my voice {verb} {object} {location}",
-    ]
-
-    attempts = 0
-    while len(result) < 10000 and attempts < 500000:
-        attempts += 1
-        template = secrets.choice(templates)
-        try:
-            phrase = template.format(
-                subject=secrets.choice(_SUBJECTS).lower(),
-                verb=secrets.choice(_VERBS),
-                object=secrets.choice(_OBJECTS),
-                adverb=secrets.choice(_ADVERBS),
-                location=secrets.choice(_LOCATIONS),
-            )
-            # Capitalize first letter and ensure period
-            phrase = phrase[0].upper() + phrase[1:]
-            if phrase not in generated and 30 <= len(phrase) <= 120:
-                generated.add(phrase)
-                result.append(phrase)
-        except (KeyError, IndexError):
-            continue
-
-    return result
 
 
 # ---------------------------------------------------------------------------

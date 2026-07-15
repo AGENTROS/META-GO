@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { Sparkles, Send, Shield, Activity, Hexagon, BrainCircuit } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/api';
 
 export default function AIGuardian() {
   const [messages, setMessages] = useState<any[]>([
@@ -33,7 +34,7 @@ export default function AIGuardian() {
     setLoading(true);
 
     try {
-      const res = await fetch(`http://localhost:8001/api/dashboard/intelligence/ask?address=${dummyAddress}`, {
+      const res = await authenticatedFetch(`/api/dashboard/intelligence/ask?address=${dummyAddress}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userQuery })

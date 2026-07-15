@@ -33,7 +33,11 @@ logger = logging.getLogger("server")
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
-load_dotenv()
+base_dir = os.path.dirname(os.path.abspath(__file__))
+# Load backend/.env first
+load_dotenv(os.path.join(base_dir, ".env"))
+# Load root/.env (overrides or complements)
+load_dotenv(os.path.join(base_dir, "..", ".env"))
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 
@@ -251,32 +255,32 @@ class RedisBloomFilter:
         self.name = name
         self.capacity = capacity
         self.error_rate = error_rate
-        self.m = int(math.ceil(- (capacity * math.log(error_rate)) / (math.log(2) ** 2)))
-        self.k = int(round((self.m / capacity) * math.log(2)))
+        # Try to reserve the bloom filter. If it exists, this will fail safely.
+        try:
+            # Synchronous clients or naive async clients might need raw execution
+            # using execute_command
+            pass
+        except Exception:
+            pass
 
-    def _get_hashes(self, item):
-        res = []
-        h = hashlib.sha256(item.encode('utf-8')).digest()
-        for i in range(self.k):
-            hi = hashlib.sha256(h + struct.pack("<I", i)).digest()
-            val = struct.unpack("<Q", hi[:8])[0]
-            res.append(val % self.m)
-        return res
+    async def _init_bloom(self):
+        try:
+            await self.redis.execute_command("BF.RESERVE", self.name, self.error_rate, self.capacity)
+        except Exception as e:
+            # Usually errors if it already exists
+            pass
 
     async def add(self, item):
-        indices = self._get_hashes(item)
-        pipe = self.redis.pipeline()
-        for idx in indices:
-            pipe.setbit(self.name, idx, 1)
-        await pipe.execute()
+        await self._init_bloom()
+        await self.redis.execute_command("BF.ADD", self.name, item)
 
     async def contains(self, item) -> bool:
-        indices = self._get_hashes(item)
-        pipe = self.redis.pipeline()
-        for idx in indices:
-            pipe.getbit(self.name, idx)
-        results = await pipe.execute()
-        return all(results)
+        try:
+            res = await self.redis.execute_command("BF.EXISTS", self.name, item)
+            return bool(res)
+        except Exception as e:
+            print(f"[BloomFilter] BF.EXISTS failed: {e}")
+            return False
 
 
 # Distributed Lock Implementations
@@ -449,7 +453,7 @@ def normalize_and_validate_handle(handle: str) -> str:
     return h_norm
 
 
-# MongoDB Transaction runner with application-level rollback fallback
+# MongoDB Transaction runner with strict rollback on failure
 async def run_registration_transaction(addr, handle_norm, user_doc, audit_doc, did_doc):
     try:
         async with await client.start_session() as session:
@@ -472,33 +476,8 @@ async def run_registration_transaction(addr, handle_norm, user_doc, audit_doc, d
                 await db.audit_logs.insert_one(audit_doc, session=session)
                 return True
     except Exception as e:
-        print(f"Transaction failed or not supported by MongoDB cluster: {e}. Executing fallback with app-level rollback.")
-        inserted_users = False
-        inserted_dids = False
-        try:
-            existing = await db.users.find_one({"walletAddress": addr})
-            if existing:
-                await db.users.update_one({"walletAddress": addr}, {"$set": user_doc})
-            else:
-                await db.users.insert_one(user_doc)
-                inserted_users = True
-                
-            if did_doc:
-                existing_did = await db.dids.find_one({"walletAddress": addr})
-                if existing_did:
-                    await db.dids.update_one({"walletAddress": addr}, {"$set": did_doc})
-                else:
-                    await db.dids.insert_one(did_doc)
-                    inserted_dids = True
-                    
-            await db.audit_logs.insert_one(audit_doc)
-            return True
-        except Exception as rollback_err:
-            if inserted_dids:
-                await db.dids.delete_many({"walletAddress": addr})
-            if inserted_users:
-                await db.users.delete_many({"walletAddress": addr})
-            raise rollback_err
+        print(f"Transaction failed: {e}. All operations rolled back.")
+        raise e
 
 
 async def check_rate_limit_redis(action: str, key: str, limit: int, window: int = 60):
@@ -2787,28 +2766,18 @@ async def health():
 @app.get("/api/public/platform-stats")
 async def get_platform_stats():
     identities_created = await db.users.count_documents({})
-    identities_created_val = 4820 + identities_created
-    
     proofs_count = await db.used_nullifiers.count_documents({})
-    successful_verifications_val = 1205300 + proofs_count
-    
-    active_wallets_val = 3240 + identities_created
-    
+    wallets_count = await db.users.count_documents({"walletAddress": {"$exists": True, "$ne": None}})
     sbts_count = await db.sbts.count_documents({})
-    credentials_issued_val = 1205300 + sbts_count
-    
-    supported_chains_val = 13
-    uptime_val = 99.2
-    api_latency_val = 12
     
     return {
-        "identitiesCreated": identities_created_val,
-        "successfulVerifications": successful_verifications_val,
-        "activeWallets": active_wallets_val,
-        "credentialsIssued": credentials_issued_val,
-        "supportedChains": supported_chains_val,
-        "uptime": uptime_val,
-        "apiLatency": api_latency_val
+        "identitiesCreated": identities_created,
+        "successfulVerifications": proofs_count,
+        "activeWallets": wallets_count,
+        "credentialsIssued": sbts_count,
+        "supportedChains": 13,
+        "uptime": 99.2,
+        "apiLatency": 12
     }
 
 

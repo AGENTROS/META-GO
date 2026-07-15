@@ -9,12 +9,19 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     environment:
+      # Note: with a replica set, initial auth might require a keyfile or special script. 
+      # For local dev without a keyfile, we omit strict auth, but we can keep variables
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: secure_password
+    healthcheck:
+      test: test $$(echo "rs.initiate().ok || rs.status().ok" | mongosh -u admin -p secure_password --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
 
   redis:
-    image: redis:alpine
+    image: redis/redis-stack-server:latest
     container_name: metago-redis
     restart: unless-stopped
     ports:

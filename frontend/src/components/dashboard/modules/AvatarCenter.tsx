@@ -3,6 +3,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { Globe, Cpu, Hexagon, Activity, Radio, Sparkles, Upload, Maximize, Play, CheckCircle2, Zap, AlertTriangle, Shield, Award, Map, RefreshCw } from 'lucide-react';
 
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'model-viewer': any;
+    }
+  }
+}
+
 const SUPPORTED_WORLDS = [
   'Decentraland', 'Sandbox', 'Spatial', 'VRChat', 'Hyperfy', 'OnCyber', 'Unity', 'Unreal Engine'
 ];
@@ -13,9 +21,59 @@ export default function AvatarCenter() {
   const [presence, setPresence] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deployingTo, setDeployingTo] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFile = (file: File) => {
+    if (file && (file.name.toLowerCase().endsWith('.vrm') || file.name.toLowerCase().endsWith('.glb'))) {
+      setAvatar({
+        avatar_name: file.name,
+        version: 'v1.0',
+        url: URL.createObjectURL(file)
+      });
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
 
   const { address } = useAccount();
   const dummyAddress = address;
+
+  useEffect(() => {
+    // Add Google Model Viewer script
+    if (typeof window !== 'undefined' && !document.querySelector('script[src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"]')) {
+      const script = document.createElement('script');
+      script.src = "https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js";
+      script.type = "module";
+      document.head.appendChild(script);
+    }
+
+    // Prevent global drag/drop to stop browser from opening files if dropped outside zone
+    const preventDefault = (e: Event) => e.preventDefault();
+    window.addEventListener('dragover', preventDefault);
+    window.addEventListener('drop', preventDefault);
+    return () => {
+      window.removeEventListener('dragover', preventDefault);
+      window.removeEventListener('drop', preventDefault);
+    };
+  }, []);
 
   const fetchHub = async () => {
     if (!address) { setLoading(false); return; }
@@ -159,22 +217,29 @@ export default function AvatarCenter() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Avatar Viewer */}
-          <div className="card" style={{ 
+          <div 
+            className="card" 
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            style={{ 
             flex: 2, 
             position: 'relative', 
             overflow: 'hidden', 
-            background: 'radial-gradient(circle at center, rgba(91,140,255,0.1) 0%, rgba(10,10,12,1) 100%)',
-            border: '1px solid rgba(91,140,255,0.2)',
+            background: isDragging ? 'radial-gradient(circle at center, rgba(91,140,255,0.2) 0%, rgba(10,10,12,1) 100%)' : 'radial-gradient(circle at center, rgba(91,140,255,0.1) 0%, rgba(10,10,12,1) 100%)',
+            border: isDragging ? '2px dashed rgba(91,140,255,0.8)' : '1px solid rgba(91,140,255,0.2)',
             boxShadow: 'inset 0 0 100px rgba(0,0,0,0.8), 0 20px 40px rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.3s ease'
           }}>
+            <input type="file" accept=".glb,.vrm" ref={fileInputRef} style={{ display: 'none' }} onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
             <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
               <div className="stag" style={{ background: 'rgba(91,140,255,0.1)', color: 'var(--blue)', border: '1px solid var(--blue)' }}>
                 <Cpu size={12} style={{ marginRight: '4px' }}/> {avatar ? `Engine Ready • ${avatar.version || 'v1.0'}` : 'Awaiting Avatar'}
               </div>
             </div>
             <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10, display: 'flex', gap: '8px' }}>
-              <button className="icon-btn"><Upload size={16}/></button>
+              <button className="icon-btn" onClick={() => fileInputRef.current?.click()}><Upload size={16}/></button>
               <button className="icon-btn"><RefreshCw size={16}/></button>
               <button className="icon-btn"><Maximize size={16}/></button>
             </div>
@@ -188,10 +253,15 @@ export default function AvatarCenter() {
                     margin: '0 auto', 
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '0 0 60px rgba(91,140,255,0.3)',
-                    background: 'url("https://models.readyplayer.me/648a1b5c4f2b11e2f9d3a1a1.png") center/cover',
-                    border: '1px solid rgba(255,255,255,0.1)'
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    overflow: 'hidden'
                   }}>
-                    {/* Lazy Loaded 3D Canvas would go here */}
+                    <model-viewer 
+                      src={avatar.url} 
+                      auto-rotate 
+                      camera-controls 
+                      style={{width: '100%', height: '100%', backgroundColor: 'transparent'}} 
+                    ></model-viewer>
                   </div>
                   <h3 style={{ marginTop: '20px' }}>{avatar.avatar_name || 'Genesis Avatar'}</h3>
                   <div style={{ marginTop: '10px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
@@ -199,8 +269,11 @@ export default function AvatarCenter() {
                   </div>
                 </>
               ) : (
-                <div style={{ padding: '40px', color: 'var(--muted)' }}>
-                  Upload a .VRM or .GLB to initialize Metaverse Hub.
+                <div 
+                  style={{ padding: '40px', color: 'var(--muted)', cursor: 'pointer' }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {isDragging ? 'Drop it like it\'s hot! 🔥' : 'Upload a .VRM or .GLB to initialize Metaverse Hub.'}
                 </div>
               )}
             </div>

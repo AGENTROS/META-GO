@@ -78,9 +78,18 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
                   headers,
                 });
               }
+            } else {
+              setJWTToken(null);
+              if (typeof window !== 'undefined') {
+                window.location.href = '/auth';
+              }
             }
           } catch (err) {
             console.error('Failed to auto-refresh token:', err);
+            setJWTToken(null);
+            if (typeof window !== 'undefined') {
+              window.location.href = '/auth';
+            }
           }
           isRefreshing = false;
         } else {

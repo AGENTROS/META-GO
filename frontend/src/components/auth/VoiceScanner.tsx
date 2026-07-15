@@ -27,7 +27,8 @@ export function VoiceScanner({ onComplete, walletAddress = "0x000" }: Props) {
     async function fetchChallenges() {
       setPhase('fetching');
       try {
-        const res = await fetch(`http://localhost:8001/api/user/biometrics/challenge?count=3&address=${walletAddress}`);
+        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
+        const res = await fetch(`${backend}/api/user/biometrics/challenge?count=3&address=${walletAddress}`, { credentials: 'include' });
         const data = await res.json();
         if (data.ok && data.challenges) {
           setChallenges(data.challenges);
@@ -116,9 +117,11 @@ export function VoiceScanner({ onComplete, walletAddress = "0x000" }: Props) {
       // All steps done, register voice
       setPhase('processing');
       try {
-        const res = await fetch('http://localhost:8001/api/user/biometrics/register-voice', {
+        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
+        const res = await fetch(`${backend}/api/user/biometrics/register-voice`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             walletAddress: walletAddress,
             recordings: newRecordings
