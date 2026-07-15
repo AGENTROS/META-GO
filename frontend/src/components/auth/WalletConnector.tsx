@@ -34,10 +34,12 @@ export function WalletConnector({ onSuccess }: { onSuccess: () => void }) {
     } catch (e: any) {
       if (e?.message?.includes('already pending')) {
         setError('Please open your wallet extension (e.g. MetaMask) to approve the pending connection request.');
+      } else if (e?.message?.includes('Provider not found')) {
+        setError('No Web3 wallet detected. Please install MetaMask to continue.');
       } else {
         setError(e?.message || 'Connection failed');
       }
-      toast.error('Wallet connection cancelled');
+      toast.error('Wallet connection failed');
     } finally {
       setLocalPending(false);
     }
@@ -45,6 +47,20 @@ export function WalletConnector({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="space-y-3">
+      {connectors.length === 0 && (
+        <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer"
+          className="w-full flex items-center justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 hover:border-orange-500/40 hover:bg-orange-50 dark:hover:bg-zinc-900 transition-all">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-600/10 border border-orange-600/30 flex items-center justify-center">
+              <Wallet size={18} className="text-orange-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-bold text-zinc-900 dark:text-white">Install MetaMask</p>
+              <p className="text-[10px] text-zinc-450 uppercase font-mono tracking-wider">No wallet detected</p>
+            </div>
+          </div>
+        </a>
+      )}
       {connectors.map(c => (
         <button key={c.uid} onClick={() => handleConnect(c)} disabled={localPending || siweLoading}
           data-testid={`connector-${c.id}`}
