@@ -234,6 +234,7 @@ export default function Home() {
 
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [activeStep, setActiveStep] = useState(0);
 
   // TanStack Query initial load
   const { data: initialStats } = useQuery<PlatformStats>({
@@ -368,15 +369,77 @@ export default function Home() {
 
     /* STEPS */
     .lp-steps-row { display:grid; grid-template-columns:repeat(5,1fr); gap:0; }
-    .lp-step { background:var(--card); border:1px solid var(--cb); border-right:none; padding:20px 18px; position:relative; }
+    .lp-step { 
+      background:var(--card); 
+      border:1px solid var(--cb); 
+      border-right:none; 
+      padding:20px 18px; 
+      position:relative; 
+      cursor:pointer;
+      outline:none;
+      transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+    }
     .lp-step:last-child { border-right:1px solid var(--cb); border-radius:0 14px 14px 0; }
     .lp-step:first-child { border-radius:14px 0 0 14px; }
-    .lp-step::before { content:""; position:absolute; top:36px; right:-9px; width:18px; height:1px; border-top:1.5px dashed rgba(255,255,255,0.2); z-index:2; }
+    .lp-step::before { content:""; position:absolute; top:36px; right:-9px; width:18px; height:1px; border-top:1.5px dashed rgba(255,255,255,0.2); z-index:2; transition: opacity 0.3s ease; }
     .lp-step:last-child::before { display:none; }
-    .lp-step-num { font-size:12.5px; font-weight:800; color:var(--purple); margin-bottom:14px; letter-spacing:0.02em; }
-    .lp-step-icon { width:30px; height:30px; margin-bottom:14px; display:flex; align-items:center; justify-content:center; }
-    .lp-step h4 { font-size:13.5px; font-weight:700; margin-bottom:6px; }
-    .lp-step p { font-size:11.5px; color:var(--dim); line-height:1.5; }
+    .lp-step-num { font-size:12.5px; font-weight:800; color:var(--purple); margin-bottom:14px; letter-spacing:0.02em; transition: all 0.3s ease; }
+    .lp-step-icon { width:30px; height:30px; margin-bottom:14px; display:flex; align-items:center; justify-content:center; transition: all 0.3s ease; }
+    .lp-step h4 { font-size:13.5px; font-weight:700; margin-bottom:6px; transition: all 0.3s ease; }
+    .lp-step p { font-size:11.5px; color:var(--dim); line-height:1.5; transition: all 0.3s ease; }
+
+    .lp-step:hover {
+      border-color: rgba(155, 91, 255, 0.4);
+      background: #111428;
+    }
+    .lp-step.active, .lp-step:focus-visible {
+      border: 1px solid #9b5bff !important;
+      background: #111428;
+      box-shadow: 0 0 20px rgba(155, 91, 255, 0.25), inset 0 0 12px rgba(155, 91, 255, 0.15);
+      z-index: 10;
+    }
+    .lp-step.active {
+      transform: translateY(-2px);
+    }
+    .lp-step.active .lp-step-num {
+      color: var(--pink);
+      transform: scale(1.05);
+      text-shadow: 0 0 8px rgba(197, 107, 255, 0.5);
+    }
+    .lp-step.active .lp-step-icon {
+      transform: scale(1.1);
+      filter: drop-shadow(0 0 6px var(--purple));
+    }
+    .lp-step.active h4 {
+      color: #fff;
+    }
+    .lp-step.active::before {
+      opacity: 0.5;
+    }
+
+    .lp-step-indicator {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--faint);
+      transition: all 0.3s ease;
+      opacity: 0;
+      transform: scale(0.8);
+      background: rgba(155, 91, 255, 0.1);
+    }
+    .lp-step:hover .lp-step-indicator, .lp-step.active .lp-step-indicator {
+      opacity: 1;
+      transform: scale(1);
+      border-color: var(--purple);
+      color: var(--purple);
+    }
 
     /* COMPLIANCE */
     .lp-comp-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; max-width:800px; margin:0 auto; }
@@ -594,11 +657,30 @@ export default function Home() {
               { n: '04', title: 'Use Anywhere',      desc: 'Access dApps and services across multiple chains.' },
               { n: '05', title: 'Stay in Control',   desc: 'You own your data. Forever.' },
             ].map((s, i) => (
-              <div key={i} className="lp-step">
+              <div 
+                key={i} 
+                className={`lp-step ${activeStep === i ? 'active' : ''}`}
+                tabIndex={0}
+                role="button"
+                aria-pressed={activeStep === i}
+                onClick={() => setActiveStep(i)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveStep(i);
+                  }
+                }}
+              >
                 <div className="lp-step-num">{s.n}</div>
                 <div className="lp-step-icon">{StepIcons[i]}</div>
                 <h4>{s.title}</h4>
                 <p>{s.desc}</p>
+                <span className="lp-step-indicator">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </span>
               </div>
             ))}
           </div>
