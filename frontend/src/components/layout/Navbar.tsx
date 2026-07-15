@@ -1,10 +1,12 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAccount, useDisconnect } from 'wagmi';
 import { Bell, Menu, ChevronDown, Shield, Settings, LogOut, User, BarChart3 } from 'lucide-react';
 import { useIdentityStore } from '@/store/useIdentityStore';
+import { getJWTToken } from '@/lib/tokenManager';
 import toast from 'react-hot-toast';
 import { NotificationCenter } from './NotificationCenter';
 import { MobileNav } from './MobileNav';
@@ -40,10 +42,11 @@ export function Navbar() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const { handle, unreadCount, logout } = useIdentityStore(useShallow(s => ({
+  const { handle, unreadCount, logout, isAuthenticated } = useIdentityStore(useShallow(s => ({
     handle: s.handle,
     unreadCount: s.unreadCount,
-    logout: s.logout
+    logout: s.logout,
+    isAuthenticated: s.isAuthenticated
   })));
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
@@ -55,12 +58,15 @@ export function Navbar() {
 
   useEffect(() => {
     setMounted(true);
+    if (isAuthenticated && !getJWTToken()) {
+      logout();
+    }
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setAvatarOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  }, [isAuthenticated, logout]);
 
   useEffect(() => {
     setAvatarOpen(false);
@@ -69,15 +75,15 @@ export function Navbar() {
   }, [pathname]);
 
   function handleLogout() {
-    disconnect();
     logout();
     toast.success('Session ended');
     router.push('/');
   }
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null;
+  const isUserAuthenticated = mounted && isConnected && shortAddress && isAuthenticated && !!getJWTToken();
 
-    const navLinks = (mounted && isConnected && shortAddress) ? [
+    const navLinks = isUserAuthenticated ? [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/sbt-gallery', label: 'Credentials' },
     { href: '/vault', label: 'Vault' },
@@ -125,7 +131,7 @@ export function Navbar() {
               )}
             </button>
 
-            {mounted && isConnected && shortAddress ? (
+            {isUserAuthenticated ? (
               <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setAvatarOpen(!avatarOpen)}
                   className="flex items-center gap-2 px-2.5 py-1 rounded-xl border border-white/8 bg-zinc-950/40 hover:bg-zinc-900/60 transition-all"
