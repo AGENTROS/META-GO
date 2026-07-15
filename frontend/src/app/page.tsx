@@ -377,7 +377,7 @@ export default function Home() {
       position:relative; 
       cursor:pointer;
       outline:none;
-      transition: background 0.3s ease, transform 0.3s ease;
+      transition: background 0.3s ease, transform 0.3s ease, z-index 0.3s ease;
     }
     .lp-step:last-child { border-right:1px solid var(--cb); border-radius:0 14px 14px 0; }
     .lp-step:first-child { border-radius:14px 0 0 14px; }
@@ -404,24 +404,16 @@ export default function Home() {
     .lp-step h4 { font-size:13.5px; font-weight:700; margin-bottom:6px; transition: all 0.3s ease; }
     .lp-step p { font-size:11.5px; color:var(--dim); line-height:1.5; transition: all 0.3s ease; }
 
-    .lp-step:hover {
-      background: #111428;
-    }
-    .lp-step:hover::after {
-      opacity: 0.45;
-      border-color: rgba(155, 91, 255, 0.6);
-    }
-    .lp-step.active, .lp-step:focus-visible {
+    /* Default state: active step is highlighted */
+    .lp-step.active {
+      transform: translateY(-2px);
       background: #111428;
       z-index: 10;
     }
-    .lp-step.active::after, .lp-step:focus-visible::after {
-      opacity: 1 !important;
+    .lp-step.active::after {
+      opacity: 1;
       border-color: #9b5bff !important;
       box-shadow: 0 0 20px rgba(155, 91, 255, 0.25), inset 0 0 12px rgba(155, 91, 255, 0.15);
-    }
-    .lp-step.active {
-      transform: translateY(-2px);
     }
     .lp-step.active .lp-step-num {
       color: var(--pink);
@@ -457,13 +449,75 @@ export default function Home() {
       background: rgba(155, 91, 255, 0.1);
       z-index: 6;
     }
-    
-    /* Plus indicator is strictly bound to the active step */
     .lp-step.active .lp-step-indicator {
       opacity: 1;
       transform: scale(1);
       border-color: var(--purple);
       color: var(--purple);
+    }
+
+    /* Hover choreographer:
+       When steps row is hovered, temporarily dim the active card visual... */
+    .lp-steps-row:hover .lp-step.active {
+      transform: translateY(0);
+      background: var(--card);
+      z-index: 1;
+    }
+    .lp-steps-row:hover .lp-step.active::after {
+      opacity: 0;
+      box-shadow: none;
+    }
+    .lp-steps-row:hover .lp-step.active .lp-step-num {
+      color: var(--purple);
+      transform: scale(1);
+      text-shadow: none;
+    }
+    .lp-steps-row:hover .lp-step.active .lp-step-icon {
+      transform: scale(1);
+      filter: none;
+    }
+    .lp-steps-row:hover .lp-step.active h4 {
+      color: inherit;
+    }
+    .lp-steps-row:hover .lp-step.active::before {
+      opacity: 1;
+    }
+    .lp-steps-row:hover .lp-step.active .lp-step-indicator {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+
+    /* ...and transfer the visual active state to the hovered card instead! */
+    .lp-steps-row .lp-step:hover {
+      transform: translateY(-2px) !important;
+      background: #111428 !important;
+      z-index: 10 !important;
+    }
+    .lp-steps-row .lp-step:hover::after {
+      opacity: 1 !important;
+      border-color: #9b5bff !important;
+      box-shadow: 0 0 20px rgba(155, 91, 255, 0.25), inset 0 0 12px rgba(155, 91, 255, 0.15) !important;
+    }
+    .lp-steps-row .lp-step:hover .lp-step-num {
+      color: var(--pink) !important;
+      transform: scale(1.05) !important;
+      text-shadow: 0 0 8px rgba(197, 107, 255, 0.5) !important;
+    }
+    .lp-steps-row .lp-step:hover .lp-step-icon {
+      transform: scale(1.1) !important;
+      filter: drop-shadow(0 0 6px var(--purple)) !important;
+    }
+    .lp-steps-row .lp-step:hover h4 {
+      color: #fff !important;
+    }
+    .lp-steps-row .lp-step:hover::before {
+      opacity: 0.5 !important;
+    }
+    .lp-steps-row .lp-step:hover .lp-step-indicator {
+      opacity: 1 !important;
+      transform: scale(1) !important;
+      border-color: var(--purple) !important;
+      color: var(--purple) !important;
     }
 
     /* COMPLIANCE */
