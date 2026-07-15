@@ -71,11 +71,9 @@ export function Navbar() {
       <nav className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-white/8 bg-[#0a0a0c]/60 backdrop-blur-[20px] shadow-[0_8px_32px_0_rgba(0,0,0,0.5)]" data-testid="primary-navbar">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2" data-testid="brand-link">
-            <div className="w-7 h-7 rounded-full bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
-              <span className="text-blue-500 text-[10px] font-sans font-bold">M</span>
-            </div>
-            <span className="font-sans text-xs font-bold text-white tracking-tight">
-              Meta<span className="text-blue-500">Go</span>
+            <LogoMark size={24} />
+            <span className="font-sans text-[13px] font-bold text-white tracking-tight">
+              Meta <span className="text-blue-500">Go</span>
             </span>
           </Link>
 
