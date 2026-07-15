@@ -67,7 +67,9 @@ export function useOnChainIdentity() {
       } else {
         setDID(`did:metago:${address.toLowerCase()}`, `did:metago:polygon:${address.toLowerCase()}`);
       }
-      hydrateMockData();
+      if (process.env.NEXT_PUBLIC_TEST_MODE === '1') {
+        hydrateMockData();
+      }
     }
   }, [address, identityData, setDID, setHandle, hydrateMockData]);
 

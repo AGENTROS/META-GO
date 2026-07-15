@@ -23,11 +23,17 @@ def _get_fernet():
     """Get or create a Fernet instance for encrypting voice templates."""
     try:
         from cryptography.fernet import Fernet
-        # Derive 32-byte key from JWT_SECRET + fixed salt
-        jwt_secret = os.environ.get("JWT_SECRET", "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026")
-        raw = hashlib.sha256(f"voicetemplate:{jwt_secret}".encode()).digest()
-        key = base64.urlsafe_b64encode(raw)
-        return Fernet(key)
+        # Prefer explicit VOICE_TEMPLATE_KEY. If present, use it.
+        voice_key = os.environ.get("VOICE_TEMPLATE_KEY")
+        if voice_key:
+            return Fernet(voice_key.encode() if isinstance(voice_key, str) else voice_key)
+
+        # Legacy fallback: try deriving from JWT_SECRET for backward compatibility only.
+        jwt_secret = os.environ.get("JWT_SECRET")
+        if jwt_secret:
+            raw = hashlib.sha256(f"voicetemplate:{jwt_secret}".encode()).digest()
+            key = base64.urlsafe_b64encode(raw)
+            return Fernet(key)
     except ImportError:
         return None
 
@@ -45,15 +51,63 @@ def encrypt_template(template_dict: Dict[str, Any]) -> str:
 def decrypt_template(encrypted_str: str) -> Optional[Dict[str, Any]]:
     """Decrypt an encrypted voice template string back to dict."""
     try:
-        fernet = _get_fernet()
+        # Try decrypting using configured VOICE_TEMPLATE_KEY first (if any),
+        # then fall back to legacy JWT-derived key or base64-only encoding for compatibility.
         data = encrypted_str.encode()
-        if fernet:
-            payload = fernet.decrypt(data)
-        else:
+        primary = None
+        try:
+            primary = _get_fernet()
+        except Exception:
+            primary = None
+
+        if primary:
+            try:
+                payload = primary.decrypt(data)
+                return json.loads(payload.decode())
+            except Exception:
+                # fall through to legacy attempt
+                pass
+
+        # Legacy: try base64 decode (no crypto)
+        try:
             payload = base64.urlsafe_b64decode(data)
-        return json.loads(payload.decode())
+            return json.loads(payload.decode())
+        except Exception:
+            # final attempt: derive legacy key from JWT_SECRET explicitly
+            try:
+                jwt_secret = os.environ.get("JWT_SECRET")
+                if jwt_secret:
+                    from cryptography.fernet import Fernet
+                    raw = hashlib.sha256(f"voicetemplate:{jwt_secret}".encode()).digest()
+                    key = base64.urlsafe_b64encode(raw)
+                    payload = Fernet(key).decrypt(data)
+                    return json.loads(payload.decode())
+            except Exception as e:
+                print(f"[EcapaSpeakerVerifier] Failed to decrypt template (legacy attempt): {e}")
+        return None
     except Exception as e:
         print(f"[EcapaSpeakerVerifier] Failed to decrypt template: {e}")
+        return None
+
+
+def reencrypt_template_with_voice_key(encrypted_str: str) -> Optional[str]:
+    """Given an existing encrypted template (any supported format), decrypt it and
+    re-encrypt using the configured VOICE_TEMPLATE_KEY. Returns the new ciphertext
+    or None on failure. This helper enables an explicit migration step.
+    """
+    try:
+        data = decrypt_template(encrypted_str)
+        if data is None:
+            return None
+        from cryptography.fernet import Fernet
+        voice_key = os.environ.get("VOICE_TEMPLATE_KEY")
+        if not voice_key:
+            raise RuntimeError("VOICE_TEMPLATE_KEY not configured; cannot re-encrypt template.")
+        f = Fernet(voice_key.encode() if isinstance(voice_key, str) else voice_key)
+        payload = json.dumps(data, separators=(",", ":")).encode()
+        return f.encrypt(payload).decode()
+    except Exception as e:
+        print(f"[EcapaSpeakerVerifier] Re-encrypt failed: {e}")
         return None
 
 

@@ -126,7 +126,9 @@ export default function EmbedPage() {
     const did = `did:metago:${address?.toLowerCase()}`;
     store.setHandle(handle);
     store.setDID(did, `did:metago:polygon:${address?.toLowerCase()}`);
-    store.hydrateMockData();
+    if (process.env.NEXT_PUBLIC_TEST_MODE === '1') {
+      store.hydrateMockData();
+    }
 
     // Sync with backend (best effort) and trigger real on-chain mint
     const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';

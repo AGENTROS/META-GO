@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { SiweMessage } from 'siwe';
 
 import { setJWTToken } from '@/lib/tokenManager';
+import { BACKEND_URL } from '@/lib/api';
 
 export function useSIWE() {
   const { address, chainId } = useAccount();
@@ -14,7 +15,7 @@ export function useSIWE() {
     if (!address || !chainId) throw new Error('Wallet not connected');
     setIsLoading(true);
     try {
-      const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+      const backend = BACKEND_URL;
       const nonceRes = await fetch(`${backend}/api/auth/nonce`, { credentials: 'include' });
       if (!nonceRes.ok) throw new Error('Failed to fetch nonce');
       const { nonce } = await nonceRes.json();

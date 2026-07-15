@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+from .config import cfg
 import jwt
 import requests
 from web3 import Web3
@@ -34,29 +35,17 @@ logger = logging.getLogger("server")
 # Bootstrap
 # ---------------------------------------------------------------------------
 base_dir = os.path.dirname(os.path.abspath(__file__))
-# Load backend/.env first
-load_dotenv(os.path.join(base_dir, ".env"))
-# Load root/.env (overrides or complements)
-load_dotenv(os.path.join(base_dir, "..", ".env"))
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "test_database")
+MONGO_URL = cfg.MONGO_URL or os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = cfg.DB_NAME or os.environ.get("DB_NAME", "test_database")
 
-# Hardening TEST_MODE configuration on startup
-is_test_mode = os.environ.get("TEST_MODE") == "1"
-env = os.environ.get("ENV", "development")
-rpc_pool_urls = os.environ.get("RPC_POOL_URLS", "")
+# Validate startup config (may raise RuntimeError when misconfigured)
+cfg.validate_startup()
 
-if is_test_mode:
-    if env == "production":
-        raise RuntimeError("CRITICAL SECURITY VIOLATION: TEST_MODE is enabled in production environment.")
-    if MONGO_URL and "mongodb+srv://" in MONGO_URL:
-        raise RuntimeError("CRITICAL SECURITY VIOLATION: TEST_MODE is enabled but production MongoDB URI is configured.")
-    if rpc_pool_urls:
-        for rpc in rpc_pool_urls.split(","):
-            if any(prod in rpc for prod in ["infura.io", "alchemyapi.io", "alchemy.com", "quicknode.pro", "quicknode.com", "mainnet", "polygon-rpc"]):
-                raise RuntimeError("CRITICAL SECURITY VIOLATION: TEST_MODE is enabled but production RPC URL is configured.")
-
-app = FastAPI(title="Meta Go IDaaS BFF", version="1.0.0")
+# Create FastAPI app — disable docs in production
+if cfg.is_production():
+    app = FastAPI(title="Meta Go IDaaS BFF", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
+else:
+    app = FastAPI(title="Meta Go IDaaS BFF", version="1.0.0")
 
 # --- MetaGo OS Dashboard Routes Integration ---
 from .api.dashboard import router as dashboard_router
@@ -74,7 +63,7 @@ from fastapi.openapi.utils import get_openapi
 def require_test_mode(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        if os.environ.get("TEST_MODE") != "1":
+        if not cfg.TEST_MODE:
             raise HTTPException(status_code=404, detail="Not Found")
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
@@ -85,7 +74,7 @@ def require_test_mode(func):
 async def gate_test_endpoints(request: Request, call_next):
     path = request.url.path
     if any(path.startswith(prefix) for prefix in ["/api/test", "/api/debug", "/api/internal"]):
-        if os.environ.get("TEST_MODE") != "1":
+        if not cfg.TEST_MODE:
             return JSONResponse(status_code=404, content={"detail": "Not Found"})
     return await call_next(request)
 
@@ -98,7 +87,7 @@ def custom_openapi():
         description=app.description,
         routes=app.routes,
     )
-    if os.environ.get("TEST_MODE") != "1":
+    if not cfg.TEST_MODE:
         paths_to_remove = []
         for path in list(openapi_schema.get("paths", {}).keys()):
             if any(path.startswith(prefix) for prefix in ["/api/test", "/api/debug", "/api/internal"]):
@@ -109,6 +98,9 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
+
+# Convenience alias used across module
+is_test_mode = cfg.TEST_MODE
 
 CORS_ORIGINS_RAW = os.environ.get("CORS_ORIGINS", "")
 if CORS_ORIGINS_RAW:
@@ -142,7 +134,7 @@ db = client[DB_NAME]
 # When running tests locally, allow a lightweight in-memory async DB to
 # be used by setting TEST_MODE=1. This avoids requiring a running MongoDB
 # instance for CI or local unit tests.
-if os.environ.get("TEST_MODE") == "1":
+if cfg.TEST_MODE:
     try:
         from .testing_db import get_test_db
     except Exception:
@@ -357,7 +349,11 @@ async def init_redis():
         bloom_filter_redis = RedisBloomFilter(redis_client)
         print("Connected to Redis successfully.")
     except Exception as e:
-        print(f"Redis connection failed: {e}. Falling back to memory-based structures.")
+        # In production, Redis availability is considered important. Fail early.
+        print(f"Redis connection failed: {e}.")
+        if cfg.is_production():
+            raise RuntimeError(f"Redis connection failed in production: {e}")
+        print("Falling back to memory-based structures in non-production environment.")
         redis_client = None
         bloom_filter_redis = None
 
@@ -481,7 +477,7 @@ async def run_registration_transaction(addr, handle_norm, user_doc, audit_doc, d
 
 
 async def check_rate_limit_redis(action: str, key: str, limit: int, window: int = 60):
-    if os.environ.get("TEST_MODE") == "1":
+    if cfg.TEST_MODE:
         return
     if redis_client:
         try:
@@ -549,6 +545,71 @@ async def background_worker_loop():
         await asyncio.sleep(60)
 
 
+@app.on_event("startup")
+async def on_startup():
+    # Enforce additional production-only requirements
+    try:
+        if cfg.is_production():
+            cfg.require_voice_key_for_production()
+
+        # Initialize Redis (may raise in production)
+        await init_redis()
+
+        # Rebuild bloom filter once at startup (safe operation)
+        await rebuild_bloom_filter()
+
+        # Start background worker loop
+        asyncio.create_task(background_worker_loop())
+        print("MetaGo backend startup completed.")
+    except Exception as e:
+        print(f"MetaGo startup validation failed: {e}")
+        raise
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "timestamp": _now_iso()}
+
+
+@app.get("/ready")
+async def ready():
+    checks = {"ok": True, "details": {}}
+    # MongoDB readiness
+    try:
+        # lightweight server_info to verify connectivity
+        await client.server_info()
+        checks["details"]["mongodb"] = "ok"
+    except Exception as e:
+        checks["details"]["mongodb"] = f"error: {e}"
+        checks["ok"] = False
+
+    # Redis readiness (only required in production)
+    try:
+        if redis_client:
+            await redis_client.ping()
+            checks["details"]["redis"] = "ok"
+        else:
+            checks["details"]["redis"] = "unavailable"
+            if cfg.is_production():
+                checks["ok"] = False
+    except Exception as e:
+        checks["details"]["redis"] = f"error: {e}"
+        if cfg.is_production():
+            checks["ok"] = False
+
+    # Key checks
+    try:
+        if cfg.is_production() and not cfg.JWT_SECRET:
+            checks["details"]["jwt_secret"] = "missing"
+            checks["ok"] = False
+        else:
+            checks["details"]["jwt_secret"] = "configured"
+    except Exception:
+        checks["details"]["jwt_secret"] = "error"
+
+    return checks
+
+
 class ReserveUsernameBody(BaseModel):
     handle: str
     email: Optional[str] = None
@@ -568,9 +629,9 @@ class FinalizeRegistrationBody(BaseModel):
 
 
 
-JWT_SECRET = os.environ.get("JWT_SECRET")
+JWT_SECRET = cfg.JWT_SECRET
 if not JWT_SECRET:
-    if os.environ.get("TEST_MODE") == "1":
+    if cfg.TEST_MODE:
         JWT_SECRET = "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
     else:
         raise RuntimeError("CRITICAL CONFIGURATION ERROR: JWT_SECRET environment variable is not set.")
@@ -1097,7 +1158,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
                 )
                 
             is_sim = body.zkProof.algorithm == "simulation-bn128" or body.zkProof.proofHash.startswith("SIM")
-            if is_sim and os.environ.get("TEST_MODE") != "1":
+            if is_sim and not cfg.TEST_MODE:
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -1161,7 +1222,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
 
         # On-chain integration & Registration state machine
         onchain_reg = {"mode": "skipped"}
-        is_test_mode = os.environ.get("TEST_MODE") == "1"
+        is_test_mode = cfg.TEST_MODE
         from .relayer import relayer, IS_EPHEMERAL
         
         reg_id = str(uuid.uuid4())
@@ -1641,6 +1702,8 @@ async def biometrics_register(body: BiometricsRegisterBody, request: Request):
     await verify_auth_address(request, addr)
     try:
         if body.image == "SIMULATED":
+            if not cfg.TEST_MODE:
+                raise HTTPException(status_code=400, detail="Simulated biometric registration is disallowed in production mode.")
             await db.users.update_one(
                 {"walletAddress": addr},
                 {"$set": {
@@ -1686,6 +1749,8 @@ async def biometrics_verify(body: BiometricsRegisterBody, request: Request):
     await verify_auth_address(request, addr)
     try:
         if body.image == "SIMULATED":
+            if not cfg.TEST_MODE:
+                raise HTTPException(status_code=400, detail="Simulated biometric verification is disallowed in production mode.")
             return {
                 "ok": True,
                 "match": True,
@@ -1703,13 +1768,15 @@ async def biometrics_verify(body: BiometricsRegisterBody, request: Request):
             }
             
         stored_template = user["biometricTemplate"]
-        if not stored_template or "embedding" not in stored_template or stored_template.get("isSimulated"):
+        if not stored_template or "embedding" not in stored_template:
             return {
-                "ok": True,
-                "match": True,
-                "similarity": 1.0,
-                "detail": "Matched (legacy/simulated template fallback)"
+                "ok": False,
+                "detail": "No registered face template found. Please enroll first.",
+                "match": False,
+                "similarity": 0.0
             }
+        if stored_template.get("isSimulated") and not cfg.TEST_MODE:
+            raise HTTPException(status_code=400, detail="Simulated biometric templates are not accepted in production mode.")
             
         import base64
         base64_str = body.image
@@ -1763,7 +1830,7 @@ risk_engine = None
 def get_face_liveness_model():
     global face_liveness_model
     if face_liveness_model is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import face_liveness_stub as stub
             except Exception:
@@ -1783,7 +1850,7 @@ def get_face_liveness_model():
 def get_whisper_stt_model():
     global whisper_stt_model
     if whisper_stt_model is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import whisper_stub as stub
             except Exception:
@@ -1803,7 +1870,7 @@ def get_whisper_stt_model():
 def get_ecapa_speaker_model():
     global ecapa_speaker_model
     if ecapa_speaker_model is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import ecapa_stub as stub
             except Exception:
@@ -1815,17 +1882,73 @@ def get_ecapa_speaker_model():
                 ecapa_speaker_model = EcapaSpeakerVerifier()
             except Exception:
                 class Stub:
+                    def extract_embedding(self, audio_bytes):
+                        # Return a minimal analytical embedding so downstream logic can work
+                        return {
+                            "type": "analytical",
+                            "embedding": None,
+                            "features": {
+                                "pitch": 130.0,
+                                "spectral_center": 1200.0,
+                                "energy_var": 0.0,
+                                "sub_bands": [0.125] * 8,
+                                "zcr": 0.05,
+                                "formants": [500.0, 1500.0, 2500.0],
+                            },
+                        }
+
                     def extract_voiceprint(self, audio_bytes):
-                        return "stub_vp"
-                    def verify_speaker(self, a, b):
-                        return 1.0
+                        # legacy compatibility
+                        return self.extract_embedding(audio_bytes)
+
+                    def build_combined_template(self, embeddings):
+                        # combine analytical embeddings into a simple averaged template
+                        valid = [e for e in embeddings if e]
+                        if not valid:
+                            return None
+                        # average features
+                        feats = [e.get("features") for e in valid if e.get("features")]
+                        if not feats:
+                            return {"version": "2", "type": "analytical", "features": {}}
+                        import numpy as _np
+                        avg_pitch = float(_np.mean([f.get("pitch", 130.0) for f in feats]))
+                        band_arrs = _np.array([f.get("sub_bands", [0.125]*8) for f in feats], dtype=float)
+                        avg_bands = band_arrs.mean(axis=0).tolist()
+                        formant_arrs = _np.array([f.get("formants", [500.0,1500.0,2500.0]) for f in feats], dtype=float)
+                        avg_formants = formant_arrs.mean(axis=0).tolist()
+                        return {
+                            "version": "2",
+                            "type": "analytical",
+                            "features": {
+                                "pitch": avg_pitch,
+                                "spectral_center": float(_np.mean([f.get("spectral_center", 1200.0) for f in feats])),
+                                "energy_var": float(_np.mean([f.get("energy_var", 0.0) for f in feats])),
+                                "sub_bands": avg_bands,
+                                "zcr": float(_np.mean([f.get("zcr", 0.05) for f in feats])),
+                                "formants": avg_formants,
+                            }
+                        }
+
+                    def verify_speaker(self, current, stored):
+                        # Simple deterministic scoring for stub: compare pitch closeness
+                        try:
+                            if not current or not stored:
+                                return 0.0
+                            curr_pitch = current.get("features", {}).get("pitch", 130.0)
+                            stor_pitch = stored.get("features", {}).get("pitch", 130.0)
+                            diff = abs(curr_pitch - stor_pitch)
+                            score = max(0.0, min(99.0, (1.0 - diff / 50.0) * 100.0))
+                            return float(score)
+                        except Exception:
+                            return 0.0
+
                 ecapa_speaker_model = Stub()
     return ecapa_speaker_model
 
 def get_aasist_spoof_model():
     global aasist_spoof_model
     if aasist_spoof_model is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import aasist_stub as stub
             except Exception:
@@ -1845,7 +1968,7 @@ def get_aasist_spoof_model():
 def get_deepfake_detector_model():
     global deepfake_detector_model
     if deepfake_detector_model is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import deepfake_stub as stub
             except Exception:
@@ -1865,7 +1988,7 @@ def get_deepfake_detector_model():
 def get_risk_engine():
     global risk_engine
     if risk_engine is None:
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import risk_engine_stub as stub
             except Exception:
@@ -2211,7 +2334,7 @@ async def verify_proof(body: VerifyProofBody, request: Request):
         len(signals) > 0 and str(signals[0]).startswith("123")
     )
     
-    if is_sim and os.environ.get("TEST_MODE") != "1":
+    if is_sim and not cfg.TEST_MODE:
         raise HTTPException(status_code=400, detail="Simulation proofs are not accepted in production mode")
         
     mode = "simulation" if is_sim else "real"

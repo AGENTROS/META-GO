@@ -1,21 +1,26 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import { CheckCircle2, Shield, Users, Activity, Copy } from 'lucide-react';
 
 export default function IdentityPassport() {
+  const { address } = useAccount();
   const [profile, setProfile] = useState<any>(null);
   const [trust, setTrust] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
+      if (!address) {
+        setLoading(false);
+        return;
+      }
       try {
         const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
-        // In reality, we pass the current connected wallet. Hardcoded for prototype fetch.
-        const mockAddress = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
+        const lookupAddress = address.toLowerCase();
         const [profRes, trustRes] = await Promise.all([
-          fetch(`${backend}/api/did/profile?address=${mockAddress}`),
-          fetch(`${backend}/api/did/trust?address=${mockAddress}`)
+          fetch(`${backend}/api/did/profile?address=${lookupAddress}`),
+          fetch(`${backend}/api/did/trust?address=${lookupAddress}`)
         ]);
 
         if (profRes.ok) setProfile(await profRes.json());

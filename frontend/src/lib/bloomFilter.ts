@@ -1,3 +1,5 @@
+import { BACKEND_URL } from '@/lib/api';
+
 // Production Bloom Filter client utility with built-in 300ms debounce
 let debounceTimer: NodeJS.Timeout | null = null;
 
@@ -15,8 +17,7 @@ export async function checkHandleAvailability(handle: string): Promise<{ availab
       }
 
       try {
-        const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8005';
-        const res = await fetch(`${backend}/api/identity/check-handle?handle=${encodeURIComponent(handle)}`);
+        const res = await fetch(`${BACKEND_URL}/api/identity/check-handle?handle=${encodeURIComponent(handle)}`);
         const data = await res.json();
         
         // Return availability status based on backend checks (Bloom Filter + DB)

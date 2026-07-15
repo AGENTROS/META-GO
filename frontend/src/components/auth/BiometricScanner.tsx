@@ -58,6 +58,7 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
   const [cameraActive, setCameraActive] = useState(false);
   const [useSimulation, setUseSimulation] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
+  const isTestMode = process.env.NEXT_PUBLIC_TEST_MODE === '1';
   const [webcamError, setWebcamError] = useState<string | null>(null);
   
   // Step state verification tracker
@@ -469,6 +470,10 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
 
   // Pure High-Fidelity Simulated Scan Run (Fallback)
   function runSimulation() {
+    if (!isTestMode) {
+      toast.error('Simulation fallback is disabled in production.');
+      return;
+    }
     setUseSimulation(true);
     setCurrentStep('ALIGN');
     setProgress(0);
@@ -822,7 +827,8 @@ export function BiometricScanner({ onComplete, mode = 'verify' }: Props) {
               </button>
               <button 
                 onClick={runSimulation}
-                className="px-3 py-1.5 bg-blue-600 border border-blue-500 rounded text-[9px] uppercase tracking-wider text-white hover:bg-blue-700 transition-colors"
+                disabled={!isTestMode}
+                className="px-3 py-1.5 rounded text-[9px] uppercase tracking-wider text-white transition-colors disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:border-zinc-700"
               >
                 Use Simulation Fallback
               </button>

@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+from .config import cfg
 
 _app = None
 
@@ -34,7 +35,7 @@ def extract_embedding(image_bytes) -> list:
             raise ValueError("Invalid image bytes. Unable to decode image.")
             
         # 2. Extract aligned face objects using InsightFace or simulator in TEST_MODE
-        if os.environ.get("TEST_MODE") == "1":
+        if cfg.TEST_MODE:
             try:
                 from .simulators import arcface_simulator
             except Exception:

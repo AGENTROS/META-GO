@@ -174,7 +174,9 @@ export default function SignupPage() {
           ? `Real on-chain SBT minted on chain ${onchain.chainId} (token #${onchain.tokenId}).`
           : 'Sovereign founding citizen credential — biometric ZK proof anchored.',
       });
-      store.hydrateMockData();
+      if (process.env.NEXT_PUBLIC_TEST_MODE === '1') {
+        store.hydrateMockData();
+      }
 
       if (onchain.mode === 'real') {
         toast.success(`✓ Real on-chain SBT minted! Token #${onchain.tokenId}`);

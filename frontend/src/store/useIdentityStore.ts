@@ -305,7 +305,7 @@ const createAppActions: StateCreator<IdentityStore, [], [], AppActions> = (set, 
     setJWTToken(null);
   },
   hydrateMockData: () => set((state) => {
-    if (!state.walletAddress || state.soulboundTokens.length > 0) return {};
+    if (!state.walletAddress || state.soulboundTokens.length > 0 || process.env.NEXT_PUBLIC_TEST_MODE !== '1') return {};
     const addr = state.walletAddress;
     const sbts: SoulboundToken[] = [
       {

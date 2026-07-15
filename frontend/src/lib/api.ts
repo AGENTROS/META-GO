@@ -1,6 +1,6 @@
 import { getJWTToken, setJWTToken } from './tokenManager';
 
-export const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
 
 // Cache structure: key -> { data, timestamp }
 const requestCache = new Map<string, { data: any; timestamp: number }>();
@@ -8,13 +8,14 @@ const requestCache = new Map<string, { data: any; timestamp: number }>();
 const inFlightRequests = new Map<string, Promise<any>>();
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+type TokenRefreshHandler = (token: string | null) => void;
+let refreshSubscribers: TokenRefreshHandler[] = [];
 
-function subscribeTokenRefresh(cb: (token: string) => void) {
+function subscribeTokenRefresh(cb: TokenRefreshHandler) {
   refreshSubscribers.push(cb);
 }
 
-function onRefreshed(token: string) {
+function onRefreshed(token: string | null) {
   refreshSubscribers.forEach(cb => cb(token));
   refreshSubscribers = [];
 }
@@ -26,16 +27,44 @@ interface FetchOptions extends RequestInit {
   skipCache?: boolean;
 }
 
+async function refreshToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      setJWTToken(null);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth';
+      }
+      return null;
+    }
+
+    const data = await res.json();
+    if (data?.token) {
+      setJWTToken(data.token);
+      return data.token;
+    }
+    return null;
+  } catch (err) {
+    console.error('Token refresh failed:', err);
+    return null;
+  }
+}
+
 export async function authenticatedFetch(path: string, opts: FetchOptions = {}): Promise<Response> {
-  const url = path.startsWith('http') ? path : (API_URL || '') + path;
-  let token = getJWTToken();
+  const url = path.startsWith('http') ? path : `${BACKEND_URL}${path}`;
   const headers = new Headers(opts.headers || {});
-  
+  const token = getJWTToken();
+
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const timeout = opts.timeout ?? 10000; // 10s default timeout
+  const timeout = opts.timeout ?? 10000;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -53,65 +82,53 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
       });
       clearTimeout(id);
 
-      // Handle 401 Unauthorized (except on verification/login endpoints)
       if (response.status === 401 && !path.includes('/api/auth/refresh') && !path.includes('/api/auth/verify')) {
         if (!isRefreshing) {
           isRefreshing = true;
-          try {
-            const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-            });
-            if (refreshRes.ok) {
-              const data = await refreshRes.json();
-              if (data.token) {
-                setJWTToken(data.token);
-                onRefreshed(data.token);
-                isRefreshing = false;
-                
-                // Retry request with new token
-                headers.set('Authorization', `Bearer ${data.token}`);
-                return fetch(url, {
-                  ...opts,
-                  credentials: 'include',
-                  headers,
-                });
-              }
-            } else {
-              setJWTToken(null);
-              if (typeof window !== 'undefined') {
-                window.location.href = '/auth';
-              }
-            }
-          } catch (err) {
-            console.error('Failed to auto-refresh token:', err);
+          const newToken = await refreshToken();
+          isRefreshing = false;
+          onRefreshed(newToken);
+
+          if (!newToken) {
             setJWTToken(null);
             if (typeof window !== 'undefined') {
               window.location.href = '/auth';
             }
+            throw new Error('Unauthorized');
           }
-          isRefreshing = false;
-        } else {
-          // Wait for refresh to complete, then retry
-          return new Promise<Response>((resolve, reject) => {
-            subscribeTokenRefresh((newToken) => {
-              headers.set('Authorization', `Bearer ${newToken}`);
-              fetch(url, {
-                ...opts,
-                credentials: 'include',
-                headers,
-              }).then(resolve).catch(reject);
-            });
+
+          headers.set('Authorization', `Bearer ${newToken}`);
+          return fetch(url, {
+            ...opts,
+            credentials: 'include',
+            headers,
           });
         }
+
+        return new Promise<Response>((resolve, reject) => {
+          subscribeTokenRefresh((newToken) => {
+            if (!newToken) {
+              setJWTToken(null);
+              if (typeof window !== 'undefined') {
+                window.location.href = '/auth';
+              }
+              reject(new Error('Unauthorized'));
+              return;
+            }
+            headers.set('Authorization', `Bearer ${newToken}`);
+            fetch(url, {
+              ...opts,
+              credentials: 'include',
+              headers,
+            }).then(resolve).catch(reject);
+          });
+        });
       }
 
       return response;
     } catch (error) {
       if (attempt < maxRetries && !controller.signal.aborted) {
         attempt++;
-        // Exponential backoff delay
         await new Promise(r => setTimeout(r, delay * Math.pow(2, attempt)));
         return executeFetch();
       }
@@ -123,28 +140,24 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
   return executeFetch();
 }
 
-
 export async function apiCall(path: string, opts: FetchOptions = {}): Promise<any> {
   const cacheKey = `${opts.method || 'GET'}:${path}`;
   const isGet = !opts.method || opts.method.toUpperCase() === 'GET';
 
-  // 1. SWR Cache & Deduplication for GET requests
   if (isGet && !opts.skipCache) {
     const cached = requestCache.get(cacheKey);
     const inFlight = inFlightRequests.get(cacheKey);
 
-    // If we have an active in-flight request, share the promise (deduplication)
     if (inFlight) {
       return inFlight;
     }
 
     if (cached) {
       const age = Date.now() - cached.timestamp;
-      const isStale = age > 10000; // Stale after 10s
+      const isStale = age > 10000;
 
       if (isStale) {
-        // Trigger background revalidation (Stale-While-Revalidate)
-        const revalidatePromise = (async () => {
+        (async () => {
           try {
             const res = await authenticatedFetch(path, opts);
             if (res.ok) {
@@ -156,13 +169,11 @@ export async function apiCall(path: string, opts: FetchOptions = {}): Promise<an
           }
         })();
       }
-      
-      // Return cached immediately (even if stale, SWR will refresh)
+
       return cached.data;
     }
   }
 
-  // 2. Execute new request (or share active promise)
   const promise = (async () => {
     const res = await authenticatedFetch(path, opts);
     if (!res.ok) {

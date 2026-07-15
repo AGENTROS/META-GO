@@ -25,7 +25,9 @@ export default function SignInPage() {
   function complete() {
     if (address) {
       setDID(`did:metago:${address.toLowerCase()}`, `did:metago:polygon:${address.toLowerCase()}`);
-      hydrateMockData();
+      if (process.env.NEXT_PUBLIC_TEST_MODE === '1') {
+        hydrateMockData();
+      }
     }
     addNotification({ type: 'SYSTEM', message: 'Identity restored via multi-modal biometric verification pipeline' });
     document.cookie = 'celestial_auth=1; path=/; max-age=86400';

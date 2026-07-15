@@ -18,6 +18,7 @@ import threading
 from typing import Dict, Any, Optional
 
 from web3 import Web3
+from .config import cfg
 from eth_account import Account
 import redis
 
@@ -34,9 +35,9 @@ DEPLOYER_KEY = os.environ.get("DEPLOYER_KEY")
 IS_EPHEMERAL = False
 
 # Hardening TEST_MODE configuration on startup
-is_test_mode = os.environ.get("TEST_MODE") == "1"
-env = os.environ.get("ENV", "development")
-mongo_url = os.environ.get("MONGO_URL", "")
+is_test_mode = cfg.TEST_MODE
+env = cfg.ENV
+mongo_url = cfg.MONGO_URL or os.environ.get("MONGO_URL", "")
 rpc_pool_urls = os.environ.get("RPC_POOL_URLS", "")
 
 if is_test_mode:
