@@ -203,10 +203,10 @@ export function VoiceScanner({ onComplete, walletAddress = "0x000" }: Props) {
         </div>
       )}
 
-      {phase === 'idle' && challenges.length > 0 && (
+      {(phase === 'idle' || phase === 'error') && challenges.length > 0 && (
         <button onClick={startRecording}
           className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-xl text-sm font-bold transition-all shadow-sm">
-          Start Recording (Step {step})
+          {phase === 'error' ? 'Retry Voice Enrollment' : `Start Recording (Step ${step})`}
         </button>
       )}
 
