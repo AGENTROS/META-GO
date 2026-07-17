@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyJWTTokenServer } from './lib/tokenVerifier';
 
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   if (request.cookies.get('bypass_auth')?.value === '1') {
     return NextResponse.next();
   }
