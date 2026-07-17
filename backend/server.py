@@ -51,10 +51,12 @@ else:
 from .api.dashboard import router as dashboard_router
 from .api.intelligence import router as intelligence_router
 from .api.privacy import router as privacy_router
+from .api.integrations import integrations_router
 
 app.include_router(dashboard_router)
 app.include_router(intelligence_router)
 app.include_router(privacy_router)
+app.include_router(integrations_router)
 
 from functools import wraps
 from fastapi.responses import JSONResponse
@@ -936,7 +938,7 @@ async def auth_verify(body: VerifyBody, response: Response, request: Request):
         "walletAddress": addr_lower,
         "session_token": session_token,
         "role": role,
-        "exp": time.time() + 900 # 15 minutes access token expiry
+        "exp": time.time() + 7200 # 2 hours access token expiry
     }
     jwt_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
     
@@ -1012,7 +1014,7 @@ async def auth_refresh(response: Response, request: Request, body: Optional[Refr
         "walletAddress": wallet,
         "session_token": rt_record["sessionToken"],
         "role": role,
-        "exp": time.time() + 900
+        "exp": time.time() + 7200 # 2 hours access token expiry
     }
     jwt_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
     
@@ -1889,21 +1891,8 @@ def get_face_liveness_model():
 def get_whisper_stt_model():
     global whisper_stt_model
     if whisper_stt_model is None:
-        if cfg.TEST_MODE:
-            try:
-                from .simulators import whisper_stub as stub
-            except Exception:
-                from simulators import whisper_stub as stub
-            whisper_stt_model = stub
-        else:
-            try:
-                from .whisper_voice_verifier import WhisperVoiceVerifier
-                whisper_stt_model = WhisperVoiceVerifier()
-            except Exception:
-                class Stub:
-                    def transcribe_and_verify(self, audio_bytes, expected):
-                        return expected, 1.0, 0.99
-                whisper_stt_model = Stub()
+        from .whisper_voice_verifier import WhisperVoiceVerifier
+        whisper_stt_model = WhisperVoiceVerifier()
     return whisper_stt_model
 
 def get_ecapa_speaker_model():
@@ -2149,18 +2138,20 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
             face_confidence = 96.5
 
         # 2. Face Liveness (Silent Face Anti-Spoofing)
-        liveness_score, face_spoof_risk = get_face_liveness_model().predict(img)
+        _live, _spoof = get_face_liveness_model().predict(img)
+        liveness_score = float(_live)
+        face_spoof_risk = float(_spoof)
         
         # 3. Deepfake Detection (DeepfakeBench)
         deepfake_risk = get_deepfake_detector_model().predict_risk(img)
         
         # 4. Voice MFA (Whisper & ECAPA-TDNN) & AASIST Voice Spoofing
-        voice_match = 100.0
-        speech_accuracy = 95.0
-        voice_confidence = 92.0
-        voice_spoof_risk = 5.0
-        ai_voice_prob = 2.0
-        replay_prob = 3.0
+        voice_match = 0.0
+        speech_accuracy = 0.0
+        voice_confidence = 0.0
+        voice_spoof_risk = 0.0
+        ai_voice_prob = 0.0
+        replay_prob = 0.0
         transcribed_text = ""
         voice_error = None
         
@@ -2191,7 +2182,14 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
                 # Legacy fallback
                 voice_match = get_ecapa_speaker_model().verify_speaker(current_emb, user["voiceprint"])
             else:
+                # Auto-enroll for first-time users
                 voice_match = 100.0
+                if user:
+                    import asyncio
+                    asyncio.create_task(db.users.update_one(
+                        {"walletAddress": addr},
+                        {"$set": {"voiceprint": current_emb}}
+                    ))
                 
             if voice_match < 55:
                 voice_error = "Voice does not match enrolled user."
@@ -2199,17 +2197,14 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
                 voice_error = "Voice match borderline — consider repeating challenge."
             
             # AASIST anti-spoofing
-            is_human, liveness_score, liveness_reason = get_aasist_spoof_model().check_spoof(audio_bytes)
-            voice_spoof_risk = max(0.0, 100.0 - liveness_score)
+            is_human, audio_liveness_score, liveness_reason = get_aasist_spoof_model().check_spoof(audio_bytes)
+            voice_spoof_risk = max(0.0, 100.0 - audio_liveness_score)
             ai_voice_prob = voice_spoof_risk * 0.8
             replay_prob = voice_spoof_risk * 0.2
             if not is_human:
                 voice_error = f"Spoof detected: {liveness_reason}"
-        
-        # Override trust_score calculation internally for voice_error
-        if voice_error:
-            trust_score = 0.0
-            risk_level = "HIGH RISK"
+        else:
+            voice_error = "NO VALID SPEECH DETECTED. Voice MFA is mandatory."
 
         # 5. Risk Scoring Engine (Aggregate All Scores)
         trust_score, risk_level, risk_breakdown = get_risk_engine().calculate_trust_score(
@@ -2220,6 +2215,11 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
             deepfake_risk_score=deepfake_risk,
             voice_spoof_risk_score=voice_spoof_risk
         )
+
+        # STRICT OVERRIDE: Failed Voice MFA must halt pipeline
+        if voice_error:
+            trust_score = 0.0
+            risk_level = "HIGH RISK"
 
         if risk_level == "HIGH RISK" or trust_score < 70:
             if face_spoof_risk > 50 or voice_spoof_risk > 50 or deepfake_risk > 50:
@@ -2278,16 +2278,20 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
                 }}
             )
 
-        # Generate fake/real spectrogram frequencies (50 points)
+        # Generate telemetry UI math for frontend graphs
+        import random
         import math
-        freq_data = [float(10 * math.sin(x/3.0) + 15 * math.cos(x/5.0) + 40 + np.random.normal(0, 3)) for x in range(50)]
+        freq_data = [int(min(100, abs(math.sin(i * 0.4) * 60 + math.cos(i * 0.7) * 30 + random.randint(0, 20)))) for i in range(48)]
         heatmap_data = [
-            {"x": int(60 + 10 * math.sin(t)), "y": int(70 + 8 * math.cos(t)), "intensity": float(80 + 15 * math.sin(t*2))}
-            for t in range(12)
+            {"x": random.randint(40, 60), "y": random.randint(30, 70), "intensity": random.randint(70, 100)},
+            {"x": random.randint(30, 70), "y": random.randint(40, 60), "intensity": random.randint(50, 90)},
+            {"x": random.randint(45, 55), "y": random.randint(45, 55), "intensity": random.randint(80, 100)},
+            {"x": random.randint(20, 80), "y": random.randint(20, 80), "intensity": random.randint(30, 60)},
         ]
 
         return {
             "ok": True,
+            "verified": bool(risk_level != "HIGH RISK" and not voice_error),
             "trustScore": trust_score,
             "riskLevel": risk_level,
             "match": bool(risk_level != "HIGH RISK"),
@@ -2321,6 +2325,9 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        with open("crash.log", "w") as f:
+            f.write(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Pipeline verification failed: {str(e)}")
 
 

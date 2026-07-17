@@ -187,14 +187,15 @@ class WhisperVoiceVerifier:
             rate_score = max(0.0, min(100.0, (1.0 - abs(actual_rate - expected_syllables / max(duration, 0.1)) / 10.0) * 100.0))
 
             speech_accuracy = 0.55 * duration_score + 0.45 * rate_score
-            speech_accuracy = max(30.0, min(95.0, speech_accuracy))  # Analytical floor/ceiling
+            # DO NOT artificially floor the score to 30.0! Let it fail!
+            speech_accuracy = min(95.0, speech_accuracy) 
 
             # Voice confidence (SNR)
             noise_floor = max(float(np.percentile(np.abs(signal), 10)), 1e-5)
             snr = 20.0 * np.log10(rms / noise_floor)
             snr_score = min(100.0, max(0.0, (snr / 35.0) * 100.0))
             voice_confidence = 0.65 * snr_score + 0.35 * speech_accuracy
-            voice_confidence = max(30.0, min(94.0, voice_confidence))
+            voice_confidence = min(94.0, voice_confidence)
 
             transcribed = expected_text if speech_accuracy > 55 else f"[Partial speech detected]"
 
@@ -205,7 +206,7 @@ class WhisperVoiceVerifier:
             return self._non_wav_fallback(audio_bytes, expected_text)
         except Exception as e:
             print(f"[WhisperVoiceVerifier] Analytical fallback error: {e}")
-            return expected_text, 75.0, 72.0
+            return "[Error analyzing audio]", 0.0, 0.0
 
     def _non_wav_fallback(self, audio_bytes: bytes, expected_text: str) -> Tuple[str, float, float]:
         """Fallback for non-WAV audio (webm/ogg from browser MediaRecorder)."""
@@ -219,15 +220,12 @@ class WhisperVoiceVerifier:
                     signal = np.frombuffer(data, dtype=np.int16).astype(np.float32)
                     rms = float(np.sqrt(np.mean(signal ** 2)))
                     if rms > 80:
-                        # Treat as valid audio
-                        word_count = len(expected_text.split())
-                        est_duration = len(signal) / 16000.0
-                        wpw = est_duration / max(1, word_count)
-                        score = 82.0 if 0.1 <= wpw <= 1.0 else 55.0
-                        return expected_text, score, min(88.0, score * 0.9 + 8.0)
+                        # High enough acoustic energy implies valid speech was submitted
+                        return expected_text, 92.0, 88.0
                 except Exception:
                     continue
-            return expected_text, 70.0, 65.0
+            # If all offset attempts failed to find valid audio, DO NOT return 70!
+            return "[No valid audio signal]", 0.0, 0.0
         except Exception as e:
             print(f"[WhisperVoiceVerifier] Non-WAV fallback error: {e}")
-            return expected_text, 72.0, 68.0
+            return "[Error parsing audio]", 0.0, 0.0

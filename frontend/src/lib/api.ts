@@ -66,7 +66,7 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
 
   const timeout = opts.timeout ?? 10000;
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+  const id = setTimeout(() => controller.abort('Backend request timeout'), timeout);
 
   let attempt = 0;
   const maxRetries = opts.retries ?? 2;
@@ -126,7 +126,15 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
       }
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      // Silently handle abort/timeout errors - backend is just not available
+      if (error?.name === 'AbortError' || controller.signal.aborted) {
+        clearTimeout(id);
+        return new Response(JSON.stringify({ error: 'Backend unavailable' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       if (attempt < maxRetries && !controller.signal.aborted) {
         attempt++;
         await new Promise(r => setTimeout(r, delay * Math.pow(2, attempt)));

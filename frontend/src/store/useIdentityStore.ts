@@ -126,12 +126,18 @@ interface GuardianSlice {
   setWizardStep: (step: number) => void;
 }
 
+interface IntegrationSlice {
+  integrations: Record<string, boolean>;
+  fetchIntegrations: () => Promise<void>;
+  setIntegrationStatus: (provider: string, status: boolean) => void;
+}
+
 interface AppActions {
   logout: () => void;
   hydrateMockData: () => void;
 }
 
-export type IdentityStore = WalletSlice & ProfileSlice & CredentialSlice & AvatarSlice & NotificationSlice & GuardianSlice & AppActions;
+export type IdentityStore = WalletSlice & ProfileSlice & CredentialSlice & AvatarSlice & NotificationSlice & GuardianSlice & IntegrationSlice & AppActions;
 
 // --- HELPERS ---
 
@@ -176,7 +182,13 @@ const createWalletSlice: StateCreator<IdentityStore, [], [], WalletSlice> = (set
   chainId: null,
   setWallet: (address, chainId) => set((state) => {
     if (state.walletAddress === address && state.chainId === chainId && state.isAuthenticated) return {};
-    return { walletAddress: address, isAuthenticated: true, chainId };
+    const nextState = { ...state, walletAddress: address, isAuthenticated: true, chainId };
+    return { 
+      walletAddress: address, 
+      isAuthenticated: true, 
+      chainId,
+      identityMetrics: recalculateMetrics(nextState) || state.identityMetrics 
+    };
   }),
   setChainId: (chainId) => set((state) => state.chainId === chainId ? {} : { chainId }),
 });
@@ -271,6 +283,26 @@ const createGuardianSlice: StateCreator<IdentityStore, [], [], GuardianSlice> = 
   setWizardStep: (step) => set({ wizardStep: step }),
 });
 
+const createIntegrationSlice: StateCreator<IdentityStore, [], [], IntegrationSlice> = (set) => ({
+  integrations: {},
+  fetchIntegrations: async () => {
+    try {
+      const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
+      const res = await fetch(`${backend}/api/integrations/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === 'success') {
+        set({ integrations: data.data });
+      }
+    } catch (e) {
+      console.warn('Backend integrations check skipped (offline or no response)');
+    }
+  },
+  setIntegrationStatus: (provider, status) => set((state) => ({
+    integrations: { ...state.integrations, [provider.toLowerCase()]: status }
+  })),
+});
+
 // --- INITIAL STATE FOR RESET ---
 const INITIAL_STATE = {
   walletAddress: null,
@@ -291,6 +323,7 @@ const INITIAL_STATE = {
   wizardStep: 0,
   guardians: [],
   identityMetrics: null,
+  integrations: {},
 };
 
 // --- CORE APP ACTIONS ---
@@ -354,6 +387,7 @@ export const useIdentityStore = create<IdentityStore>()(
       ...createAvatarSlice(set, get, store),
       ...createNotificationSlice(set, get, store),
       ...createGuardianSlice(set, get, store),
+      ...createIntegrationSlice(set, get, store),
       ...createAppActions(set, get, store),
     }),
     {
@@ -371,6 +405,7 @@ export const useIdentityStore = create<IdentityStore>()(
         linkedAvatar: state.linkedAvatar,
         identityMetrics: state.identityMetrics,
         guardians: state.guardians,
+        integrations: state.integrations,
       }),
     }
   )

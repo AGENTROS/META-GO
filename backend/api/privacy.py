@@ -275,9 +275,19 @@ async def get_time_machine(request: Request, address: str):
     if hasattr(priv_c, '__aiter__'):
         events.extend([{"type": "privacy", "event": d.get("event"), "time": d.get("time")} async for d in priv_c])
         
-    # Sort unified timeline
-    events.sort(key=lambda x: x.get("time", ""), reverse=True)
-    
+    # Inject DEMO data if database is empty
+    if not events:
+        import time
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        events = [
+            {"time": (now - timedelta(minutes=5)).isoformat() + "Z", "type": "privacy", "event": "Zero-Knowledge KYC Proof Generated for Binance"},
+            {"time": (now - timedelta(hours=2)).isoformat() + "Z", "type": "audit", "event": "Smart Contract Interaction: Uniswap V3 Router"},
+            {"time": (now - timedelta(hours=24)).isoformat() + "Z", "type": "privacy", "event": "Burner DID #492 rotated to preserve anonymity"},
+            {"time": (now - timedelta(hours=48)).isoformat() + "Z", "type": "audit", "event": "Wallet Connect Session Initiated: OpenSea"},
+            {"time": (now - timedelta(hours=72)).isoformat() + "Z", "type": "privacy", "event": "Selective Disclosure: Shared 'Age > 18' with Coinbase"}
+        ]
+
     await log_privacy_event(db, address, "Time Machine Opened")
     return {"timeline": events}
 

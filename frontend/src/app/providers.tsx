@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { getJWTToken } from '@/lib/tokenManager';
 
 
-import { LazyMotion, domAnimation } from 'framer-motion';
+import { LazyMotion, domMax } from 'framer-motion';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -43,7 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <LazyMotion features={domAnimation} strict>
+          <LazyMotion features={domMax} strict>
             {children}
           </LazyMotion>
           <Toaster

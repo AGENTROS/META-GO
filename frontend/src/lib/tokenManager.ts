@@ -14,6 +14,7 @@ export function setJWTToken(token: string | null): void {
         const payloadBase64 = token.split('.')[1];
         const payload = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
         
+        document.cookie = `metago_session=${token}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `celestial_jwt=${token}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `celestial_auth=1; path=/; max-age=86400; SameSite=Lax`;
         
@@ -29,6 +30,7 @@ export function setJWTToken(token: string | null): void {
       sessionStorage.removeItem(TOKEN_KEY);
       
       // Clear cookies on logout
+      document.cookie = 'metago_session=; Max-Age=0; path=/';
       document.cookie = 'celestial_jwt=; Max-Age=0; path=/';
       document.cookie = 'celestial_auth=; Max-Age=0; path=/';
       document.cookie = 'celestial_admin=; Max-Age=0; path=/';

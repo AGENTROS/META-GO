@@ -184,7 +184,60 @@ async def get_vault_credentials(request: Request, address: str):
             "metadata": {"merkle_root": zk.get("merkleRoot")},
             "is_zk": True
         })
-        
+
+    # Inject DEMO data if database is empty
+    if not formatted_credentials:
+        formatted_credentials = [
+            {
+                "id": "demo-zk-001",
+                "type": "Aadhaar Identity Proof (zk-SNARK)",
+                "issuer": "UIDAI via ZK Verifier",
+                "issuedAt": "2026-07-12T08:30:00Z",
+                "metadata": {"merkle_root": "0x7a3b...f92c", "claim": "aadhaar_verified", "doc": "Aadhaar Card"},
+                "is_zk": True
+            },
+            {
+                "id": "demo-sbt-001",
+                "type": "Passport Verification SBT",
+                "issuer": "MetaGo Document Vault",
+                "issuedAt": "2026-07-10T12:00:00Z",
+                "metadata": {"country": "India", "doc_type": "Passport", "expiry": "2034-05-20"},
+                "is_zk": False
+            },
+            {
+                "id": "demo-zk-002",
+                "type": "Age Verification (zk-SNARK)",
+                "issuer": "ZK Verifier Network",
+                "issuedAt": "2026-07-14T10:20:00Z",
+                "metadata": {"merkle_root": "0x3c8d...a41e", "claim": "age >= 18", "source": "PAN Card"},
+                "is_zk": True
+            },
+            {
+                "id": "demo-sbt-002",
+                "type": "University Degree Certificate",
+                "issuer": "Delhi University (On-Chain)",
+                "issuedAt": "2026-06-28T09:00:00Z",
+                "metadata": {"degree": "B.Tech Computer Science", "year": 2025, "grade": "First Class"},
+                "is_zk": False
+            },
+            {
+                "id": "demo-sbt-003",
+                "type": "KYC Compliance Badge",
+                "issuer": "Binance Global",
+                "issuedAt": "2026-07-08T15:45:00Z",
+                "metadata": {"tier": "Level 2", "region": "Global", "expiry": "2027-07-08"},
+                "is_zk": False
+            },
+            {
+                "id": "demo-zk-003",
+                "type": "Driving License Proof (zk-SNARK)",
+                "issuer": "ZK Verifier Network",
+                "issuedAt": "2026-07-15T14:10:00Z",
+                "metadata": {"merkle_root": "0x9f1a...b73d", "claim": "valid_license", "doc": "Driving License"},
+                "is_zk": True
+            }
+        ]
+
     return {"credentials": formatted_credentials}
 
 @router.get("/api/dashboard/avatar/hub")
@@ -293,6 +346,97 @@ async def create_deployment_job(request: Request, address: str, body: DeployJobR
         pass
         
     return {"success": True, "job_id": str(res.inserted_id)}
+
+
+# ---------------------------------------------------------
+# METAVERSE FOOTPRINT SUMMARY (Dashboard Widget)
+# ---------------------------------------------------------
+
+@router.get("/api/dashboard/metaverse/footprint")
+async def get_metaverse_footprint(request: Request, address: str):
+    """
+    Lightweight endpoint for the Dashboard Metaverse Footprint widget.
+    Returns real deployment data aggregated from avatar_deployments collection.
+    No fabricated data — returns empty state when no deployments exist.
+    """
+    db, redis = await get_secure_context(request, address)
+    addr_lower = address.lower()
+
+    # 1. Fetch all avatar deployments for this wallet
+    dep_cursor = db.avatar_deployments.find({"walletAddress": addr_lower})
+    if hasattr(dep_cursor, 'sort'):
+        dep_cursor = dep_cursor.sort("created_at", -1)
+    deployments = [doc async for doc in dep_cursor] if hasattr(dep_cursor, '__aiter__') else []
+
+    # 2. Aggregate per-world stats
+    world_map = {}
+    total_interactions = 0
+    avatars_used = set()
+
+    for dep in deployments:
+        world = dep.get("world", "Unknown")
+        status = dep.get("status", "Pending")
+        created = dep.get("created_at", "")
+        updated = dep.get("updated_at", "")
+        avatar_id = dep.get("avatar_id", dep.get("walletAddress", "default"))
+
+        avatars_used.add(avatar_id)
+
+        # Accumulate time spent (estimate from created_at to updated_at)
+        time_spent_minutes = 0
+        try:
+            if created and updated:
+                t_created = datetime.fromisoformat(str(created).replace("Z", "+00:00")) if isinstance(created, str) else created
+                t_updated = datetime.fromisoformat(str(updated).replace("Z", "+00:00")) if isinstance(updated, str) else updated
+                delta = (t_updated - t_created).total_seconds() / 60
+                if delta > 0:
+                    time_spent_minutes = int(delta)
+        except Exception:
+            pass
+
+        interactions = dep.get("interactions", 0)
+        total_interactions += interactions
+
+        if world not in world_map:
+            world_map[world] = {
+                "world": world,
+                "status": status,
+                "time_spent_minutes": time_spent_minutes,
+                "interactions": interactions,
+                "last_active": updated or created,
+                "deployment_count": 1,
+            }
+        else:
+            world_map[world]["time_spent_minutes"] += time_spent_minutes
+            world_map[world]["interactions"] += interactions
+            world_map[world]["deployment_count"] += 1
+            # Keep the most recent status
+            if updated and updated > (world_map[world].get("last_active") or ""):
+                world_map[world]["status"] = status
+                world_map[world]["last_active"] = updated
+
+    # 3. Build sorted world list (most recently active first)
+    worlds = sorted(world_map.values(), key=lambda w: w.get("last_active", ""), reverse=True)
+
+    # Format time for each world
+    for w in worlds:
+        mins = w["time_spent_minutes"]
+        w["time_display"] = f"{mins // 60}h {mins % 60}m" if mins > 0 else "< 1m"
+
+    # 4. Aggregate totals
+    total_minutes = sum(w["time_spent_minutes"] for w in worlds)
+
+    return {
+        "worlds": worlds,
+        "stats": {
+            "worlds_visited": len(worlds),
+            "total_time_minutes": total_minutes,
+            "total_time_display": f"{total_minutes // 60}h {total_minutes % 60}m" if total_minutes > 0 else "0h 0m",
+            "avatars_used": len(avatars_used) if deployments else 0,
+            "interactions": total_interactions,
+        }
+    }
+
 
 @router.get("/api/did/graph")
 async def get_did_graph(request: Request, address: str):

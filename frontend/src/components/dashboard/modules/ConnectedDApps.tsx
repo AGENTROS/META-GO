@@ -47,10 +47,15 @@ export default function ConnectedDApps() {
       </div>
 
       <div className="card mt-6">
-        <div className="card-head">
+        <div className="card-head flex justify-between items-center">
           <div className="card-title">
             Active Connections
           </div>
+          {dapps.length > 0 && (
+            <button onClick={() => window.location.href = '/dashboard'} className="text-xs text-blue-400 hover:text-blue-300 font-medium px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors">
+              + Connect New
+            </button>
+          )}
         </div>
         <div className="row-list">
           {loading ? (
@@ -60,6 +65,12 @@ export default function ConnectedDApps() {
               <Share2 />
               <h4>No Connected DApps</h4>
               <p>Your identity footprint is completely private. You have not authorized any third-party applications.</p>
+              <button 
+                onClick={() => window.location.href = '/dashboard'}
+                className="mt-6 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20"
+              >
+                Browse Ecosystem
+              </button>
             </div>
           ) : (
             dapps.map((dapp, idx) => (

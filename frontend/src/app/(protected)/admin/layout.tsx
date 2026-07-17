@@ -4,7 +4,7 @@ import { verifyJWTTokenServer } from '@/lib/tokenVerifier';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const token = cookieStore.get('celestial_jwt')?.value;
+  const token = cookieStore.get('metago_session')?.value;
 
   if (!token) {
     redirect('/auth');

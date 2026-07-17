@@ -289,7 +289,7 @@ export default function SignupPage() {
           
           {/* Left Panel: Wizard Setup Card */}
           <div className="lg:col-span-7">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" initial={false}>
               <m.div 
                 key={step}
                 initial={{ opacity: 0, y: 10 }} 

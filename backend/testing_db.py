@@ -183,6 +183,7 @@ class AsyncInMemoryDB:
         self.refresh_tokens = AsyncInMemoryCollection()
         self.username_reservations = AsyncInMemoryCollection()
         self.dids = AsyncInMemoryCollection()
+        self.avatar_deployments = AsyncInMemoryCollection()
 
 
     async def command(self, cmd):

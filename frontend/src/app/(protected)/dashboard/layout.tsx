@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Grid, Contact, Clock, Bell, Shield, Users, Mail, Settings, 
   Activity, Globe, Search, RefreshCw, CheckCircle2, AlertTriangle, 
-  Menu, X
+  Menu, X, LogOut
 } from 'lucide-react';
 import RightRail from '@/components/dashboard/RightRail';
 
@@ -40,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     { id: 'avatar-center', label: 'Metaverse Hub', icon: Globe },
   ]},
   { group: 'Wallet', items: [
-    { id: 'wallet-center', label: 'Wallet Intelligence', icon: Grid },
+    { id: 'wallet-intelligence', label: 'Wallet Intelligence', icon: Grid },
     { id: 'connected-dapps', label: 'DApps', icon: Activity },
     { id: 'cross-chain-identity', label: 'Cross Chain', icon: Activity },
   ]},
@@ -94,6 +94,7 @@ function LogoMark({ size = 26 }: { size?: number }) {
 export default function DashboardOSLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   
   // Get current active ID based on pathname
   const currentPath = (pathname || '').split('/').pop();
@@ -125,7 +126,7 @@ export default function DashboardOSLayout({ children }: { children: React.ReactN
                 <div className="nav-group-label">{group.group}</div>
                 {group.items.map(item => (
                   <Link 
-                    href={`/dashboard/${item.id}`} 
+                    href={item.id ? `/dashboard/${item.id}` : '/dashboard'} 
                     key={item.id}
                     className={`nav-item ${activeId === item.id ? 'active' : ''}`}
                   >
@@ -168,15 +169,18 @@ export default function DashboardOSLayout({ children }: { children: React.ReactN
               <button className="tbtn">
                 <RefreshCw size={14} /> Refresh
               </button>
-              <button className="tbtn primary">
+              <button className="tbtn primary" onClick={() => router.push('/dashboard/credential-vault')}>
                 <CheckCircle2 size={14} /> Verify Credentials
               </button>
               <button className="icon-btn">
                 <Bell size={15} />
                 <span className="dot-badge">5</span>
               </button>
-              <button className="icon-btn">
+              <button className="icon-btn" onClick={() => router.push('/dashboard/settings')} title="Settings">
                 <Settings size={15} />
+              </button>
+              <button className="icon-btn" onClick={() => router.push('/auth/signin')} title="Log Out" style={{ color: 'var(--red, #ef4444)' }}>
+                <LogOut size={15} />
               </button>
             </div>
           </header>

@@ -598,9 +598,14 @@ export default function Home() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
               </Link>
             ) : isConnected ? (
-              <Link href="/auth/signup" className="lp-btn lp-btn-primary" id="nav-getstarted-btn">
-                Get Started
-              </Link>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <Link href="/auth/signin" className="lp-btn lp-btn-outline" id="nav-signin-btn">
+                  Sign In
+                </Link>
+                <Link href="/auth/signup" className="lp-btn lp-btn-primary" id="nav-getstarted-btn">
+                  Get Started
+                </Link>
+              </div>
             ) : (
               <button
                 className="lp-btn lp-btn-primary"

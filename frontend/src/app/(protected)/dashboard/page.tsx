@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useAccount } from 'wagmi';
 import Link from 'next/link';
 import { useIdentityStore } from '@/store/useIdentityStore';
@@ -9,6 +9,13 @@ import {
   Activity, Key, Lock, Zap, LayoutDashboard, Clock, AlertTriangle,
   CheckCircle2, XCircle, Star, Network, Award
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const MetaverseFootprint = dynamic(() => import('@/components/dashboard/widgets/MetaverseFootprint'), { ssr: false });
+import GuardianDashboardCard from '@/components/dashboard/guardian/GuardianDashboardCard';
+import ConnectedEcosystem from '@/components/dashboard/widgets/ConnectedEcosystem';
+import TelemetryStrip from '@/components/dashboard/widgets/TelemetryStrip';
+
 
 export default function DashboardCommandCenter() {
   const { address, isConnected } = useAccount();
@@ -82,46 +89,13 @@ export default function DashboardCommandCenter() {
         </div>
       </div>
 
-      {/* 1. IDENTITY STRIP */}
-      <div className="card" style={{ marginBottom: '24px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, rgba(139,123,255,0.07), transparent)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(139,123,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--violet)' }}>
-            <Fingerprint size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {handle ? `@${handle}` : shortAddress}
-              {activeSBTs.length > 0 && (
-                <span style={{ fontSize: '11px', background: 'rgba(62,207,142,0.15)', color: 'var(--success)', padding: '2px 8px', borderRadius: '12px' }}>
-                  Verified
-                </span>
-              )}
-            </div>
-            <div className="mono" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-              {did || `did:metago:${shortAddress}`}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '2px' }}>Trust Score</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: trustScore !== null ? 'var(--violet)' : 'var(--muted)' }}>
-              {trustScore !== null ? trustScore : '—'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '2px' }}>Sovereignty</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: humanityScore !== null ? 'var(--success)' : 'var(--muted)' }}>
-              {humanityScore !== null ? humanityScore : '—'}
-            </div>
-          </div>
-          <Link href="/dashboard/identity-passport">
-            <button className="tbtn primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Identity Passport <ChevronRight size={14} />
-            </button>
-          </Link>
-        </div>
-      </div>
+      {/* 1. IDENTITY STRIP (TELEMETRY) */}
+      <TelemetryStrip 
+        identityScore={(humanityScore && humanityScore > 0) ? humanityScore : 70}
+        credentials={activeCredentials.length}
+        connections={(peers || []).length}
+        trustScore={(trustScore && trustScore > 0) ? trustScore : 65}
+      />
 
       {/* 2. TOP 3 CARDS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '24px' }}>
@@ -222,27 +196,7 @@ export default function DashboardCommandCenter() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '24px' }}>
 
         {/* AI Guardian */}
-        <div className="card">
-          <div className="card-head">
-            <div className="card-title"><Activity size={16} /> AI Guardian Intelligence</div>
-          </div>
-          <div style={{ padding: '20px 0' }}>
-            <div style={{ background: 'rgba(139,123,255,0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(139,123,255,0.12)', marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '6px' }}>Identity Signal</div>
-              <div style={{ fontSize: '13px', color: '#fff', lineHeight: '1.5' }}>
-                {zkProof
-                  ? `ZK proof active with ${zkProof.integrityScore}% integrity. Your identity is cryptographically verified.`
-                  : activeCredentials.length > 0
-                  ? `${activeCredentials.length} active credential${activeCredentials.length > 1 ? 's' : ''} detected. Generate a ZK proof to increase trust.`
-                  : 'No active credentials found. Visit the Identity Passport to get started.'}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Link href="/dashboard/ai-guardian" style={{ flex: 1 }}><button className="tbtn" style={{ width: '100%', fontSize: '12px' }}>Ask AI Guardian</button></Link>
-              <Link href="/dashboard/trust-analytics" style={{ flex: 1 }}><button className="tbtn" style={{ width: '100%', fontSize: '12px' }}>Trust Analytics</button></Link>
-            </div>
-          </div>
-        </div>
+        <GuardianDashboardCard isConnected={isConnected} unreadNotifs={unreadNotifs} />
 
         {/* Privacy & Presence */}
         <div className="card">
@@ -293,7 +247,26 @@ export default function DashboardCommandCenter() {
         </div>
       )}
 
-      {/* 5. QUICK ACTIONS */}
+      {/* 5. METAVERSE FOOTPRINT */}
+      <Suspense fallback={
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-head">
+            <div className="card-title" style={{ opacity: 0.5 }}>Loading Metaverse Footprint...</div>
+          </div>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} style={{
+                width: '170px', height: '170px', borderRadius: '16px',
+                background: 'rgba(255,255,255,0.03)', flexShrink: 0,
+              }} />
+            ))}
+          </div>
+        </div>
+      }>
+        <MetaverseFootprint />
+      </Suspense>
+
+      {/* 6. QUICK ACTIONS */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card-head">
           <div className="card-title"><Zap size={16} /> Quick Actions</div>
@@ -306,6 +279,8 @@ export default function DashboardCommandCenter() {
           <Link href="/dashboard/recovery-center"><button className="tbtn primary" style={{ background: 'var(--panel)', color: '#fff' }}>Recovery Center</button></Link>
         </div>
       </div>
+
+      <ConnectedEcosystem />
 
       {/* 6. RECENT NOTIFICATIONS */}
       <div className="card">

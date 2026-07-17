@@ -5,6 +5,7 @@ import {
   Settings, Monitor, Mail, Link, Activity, Shield, Key
 } from 'lucide-react';
 import WalletCenter from '@/components/dashboard/modules/WalletCenter';
+import WalletIntelligence from '@/components/dashboard/modules/WalletIntelligence';
 import AvatarCenter from '@/components/dashboard/modules/AvatarCenter';
 import IdentityGraph from '@/components/dashboard/modules/IdentityGraph';
 
@@ -24,6 +25,7 @@ import ThreatIntelligence from '@/components/dashboard/modules/ThreatIntelligenc
 import AdaptiveContext from '@/components/dashboard/modules/AdaptiveContext';
 import DigitalTwin from '@/components/dashboard/modules/DigitalTwin';
 import TimeMachine from '@/components/dashboard/modules/TimeMachine';
+import ReplayStudio from '@/components/dashboard/modules/ReplayStudio';
 import HumanityIndex from '@/components/dashboard/modules/HumanityIndex';
 import GuardianManagement from '@/components/dashboard/modules/GuardianManagement';
 import IdentityMarketplace from '@/components/dashboard/modules/IdentityMarketplace';
@@ -62,13 +64,14 @@ export default function ModulePage({ params }: { params: Promise<{ module: strin
       case 'security-center': return <SecurityCenter />;
       case 'identity-graph': return <IdentityGraph />;
       case 'wallet-center': return <WalletCenter />;
+      case 'wallet-intelligence': return <WalletIntelligence />;
       case 'humanity-index': return <HumanityIndex />;
       case 'guardian-management': return <GuardianManagement />;
       case 'identity-marketplace': return <IdentityMarketplace />;
       case 'live-network-monitor': return <LiveNetworkMonitor />;
       case 'identity-passport': return <IdentityPassport />;
       case 'activity-timeline': return <TimeMachine />;
-      case 'identity-replay': return <TimeMachine />;
+      case 'identity-replay': return <ReplayStudio />;
       case 'did-mail': return <DIDMail />;
       case 'settings': return <Preferences />;
 

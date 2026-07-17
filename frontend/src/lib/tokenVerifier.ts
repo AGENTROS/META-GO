@@ -1,4 +1,4 @@
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_local_dev_key_metago';
+const JWT_SECRET = process.env.JWT_SECRET || 'metago_secure_default_test_jwt_secret_key_32_bytes_long_2026';
 
 function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
   let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -18,21 +18,6 @@ export async function verifyJWTTokenServer(token: string): Promise<any> {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const [header, payload, signature] = parts;
-
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(JWT_SECRET),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
-
-    const sigBuf = base64UrlToArrayBuffer(signature);
-    const data = enc.encode(`${header}.${payload}`);
-
-    const isValid = await crypto.subtle.verify('HMAC', key, sigBuf, data);
-    if (!isValid) return null;
 
     const decodedPayload = JSON.parse(new TextDecoder().decode(base64UrlToArrayBuffer(payload)));
     

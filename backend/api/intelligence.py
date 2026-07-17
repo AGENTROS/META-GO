@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Dict, Any, List
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import secure context fetching from dashboard API
 from .dashboard import get_secure_context
+from ..guardian_transcription_service import get_guardian_stt_model
 
 router = APIRouter()
 logger = logging.getLogger("intelligence")
@@ -211,9 +212,58 @@ async def ask_ai_guardian(request: Request, address: str, body: AskRequest):
             "restricted": True
         }
 
+    # 6. Save to conversation memory
+    msg_id = f"msg_{int(datetime.now(timezone.utc).timestamp()*1000)}"
+    memory_doc = {
+        "walletAddress": address.lower(),
+        "session_id": body.session_id,
+        "query": query,
+        "reply": response_text,
+        "timestamp": datetime.now(timezone.utc)
+    }
+    # Keep only last 10 messages for bounded memory
+    await db.guardian_conversations.update_one(
+        {"walletAddress": address.lower(), "session_id": body.session_id},
+        {
+            "$push": {
+                "messages": {
+                    "$each": [memory_doc],
+                    "$slice": -10 
+                }
+            },
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        },
+        upsert=True
+    )
+
     return {
         "reply": response_text,
         "context_snapshot": structured_data
+    }
+
+@router.post("/api/dashboard/intelligence/transcribe")
+async def transcribe_audio(
+    request: Request,
+    address: str = Form(...),
+    audio: UploadFile = File(...)
+):
+    # Authenticate user session
+    db, _ = await get_secure_context(request, address)
+    
+    # Read and validate audio size/type
+    audio_bytes = await audio.read()
+    if len(audio_bytes) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="Audio file too large")
+        
+    stt = get_guardian_stt_model()
+    result = stt.validate_and_transcribe(audio_bytes)
+    
+    if not result.get("ok"):
+        return result  # Returns gracefully with ok: False and code
+        
+    return {
+        "ok": True,
+        "text": result.get("text")
     }
 
 

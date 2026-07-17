@@ -1,10 +1,25 @@
-import React from 'react';
+'use client';
+import React, { useState, useEffect } from 'react';
 import { 
   Network, Hexagon, Shield, CheckCircle2, Link as LinkIcon, 
   Smartphone, Wallet, Key
 } from 'lucide-react';
 
 export default function IdentityGraph() {
+  const [deviceString, setDeviceString] = useState('Primary Device');
+
+  useEffect(() => {
+    // Client-side detection of device
+    const ua = window.navigator.userAgent;
+    let detected = 'Desktop Device';
+    if (ua.includes('iPhone')) detected = 'iPhone (Trusted)';
+    else if (ua.includes('iPad')) detected = 'iPad (Trusted)';
+    else if (ua.includes('Android')) detected = 'Android Device';
+    else if (ua.includes('Macintosh')) detected = 'MacBook / Mac Device';
+    else if (ua.includes('Windows')) detected = 'Windows PC';
+    
+    setDeviceString(detected);
+  }, []);
   return (
     <>
       <div className="page-head">
@@ -52,7 +67,7 @@ export default function IdentityGraph() {
             <Shield size={16} className="text-blue" /> MetaGo DID Core
           </div>
           <div style={{ position: 'absolute', bottom: '25%', right: '25%', padding: '8px 12px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
-            <Smartphone size={12} className="text-pink" /> Trusted Device (iPhone)
+            <Smartphone size={12} className="text-pink" /> Trusted {deviceString}
           </div>
           <div style={{ position: 'absolute', top: '25%', right: '35%', padding: '8px 12px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
             <Key size={12} className="text-success" /> Biometric Key
@@ -84,7 +99,7 @@ export default function IdentityGraph() {
             <div className="row-item">
               <div className="row-ic"><Smartphone size={16} /></div>
               <div className="row-body">
-                <div className="row-title">DID to iPhone 15 Pro</div>
+                <div className="row-title">DID to {deviceString}</div>
                 <div className="row-desc">Device Fingerprint Match • Confirmed</div>
               </div>
               <div className="stag ok"><div className="d"></div>Verified</div>

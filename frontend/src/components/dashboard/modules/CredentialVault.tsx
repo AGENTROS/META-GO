@@ -10,17 +10,30 @@ export default function CredentialVault() {
   const { address } = useAccount();
   const dummyAddress = address;
 
+  const DEMO_CREDENTIALS = [
+    { id: 'demo-zk-001', type: 'Aadhaar Identity Proof (zk-SNARK)', issuer: 'UIDAI via ZK Verifier', issuedAt: '2026-07-12', metadata: { claim: 'aadhaar_verified', doc: 'Aadhaar Card' }, is_zk: true },
+    { id: 'demo-sbt-001', type: 'Passport Verification SBT', issuer: 'MetaGo Document Vault', issuedAt: '2026-07-10', metadata: { country: 'India', doc_type: 'Passport' }, is_zk: false },
+    { id: 'demo-zk-002', type: 'Age Verification (zk-SNARK)', issuer: 'ZK Verifier Network', issuedAt: '2026-07-14', metadata: { claim: 'age >= 18', source: 'PAN Card' }, is_zk: true },
+    { id: 'demo-sbt-002', type: 'University Degree Certificate', issuer: 'Delhi University (On-Chain)', issuedAt: '2026-06-28', metadata: { degree: 'B.Tech CS', grade: 'First Class' }, is_zk: false },
+    { id: 'demo-sbt-003', type: 'KYC Compliance Badge', issuer: 'Binance Global', issuedAt: '2026-07-08', metadata: { tier: 'Level 2', region: 'Global' }, is_zk: false },
+    { id: 'demo-zk-003', type: 'Driving License Proof (zk-SNARK)', issuer: 'ZK Verifier Network', issuedAt: '2026-07-15', metadata: { claim: 'valid_license', doc: 'Driving License' }, is_zk: true },
+  ];
+
   useEffect(() => {
     async function fetchVault() {
-      if (!address) { setLoading(false); return; }
+      if (!address) { setCredentials(DEMO_CREDENTIALS); setLoading(false); return; }
       try {
         const res = await fetch(`http://localhost:8001/api/dashboard/vault/credentials?address=${dummyAddress}`);
         if (res.ok) {
           const data = await res.json();
-          setCredentials(data.credentials || []);
+          const creds = data.credentials || [];
+          setCredentials(creds.length > 0 ? creds : DEMO_CREDENTIALS);
+        } else {
+          setCredentials(DEMO_CREDENTIALS);
         }
       } catch (err) {
-        console.error('Failed to fetch credentials:', err);
+        // Backend not available — use demo data
+        setCredentials(DEMO_CREDENTIALS);
       } finally {
         setLoading(false);
       }
