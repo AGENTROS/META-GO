@@ -105,6 +105,7 @@ export default function SignupPage() {
   const [minting, setMinting] = useState(false);
   const [faceLandmarks, setFaceLandmarks] = useState<number[][] | null>(null);
   const [realProof, setRealProof] = useState<any>(null);
+  const [voiceHash, setVoiceHash] = useState('');
   const [operationId, setOperationId] = useState('');
   useEffect(() => {
     setOperationId('op-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
