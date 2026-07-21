@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 # Import secure context fetching from dashboard API
 from .dashboard import get_secure_context
-from ..guardian_transcription_service import get_guardian_stt_model
+from guardian_transcription_service import get_guardian_stt_model
 
 router = APIRouter()
 logger = logging.getLogger("intelligence")

@@ -5,6 +5,7 @@ import { SiweMessage } from 'siwe';
 
 import { setJWTToken } from '@/lib/tokenManager';
 import { BACKEND_URL, authenticatedFetch } from '@/lib/api';
+import { getAddress } from 'viem';
 
 export function useSIWE() {
   const { address, chainId } = useAccount();
@@ -20,9 +21,11 @@ export function useSIWE() {
       if (!nonceRes.ok) throw new Error('Failed to fetch nonce from backend');
       const { nonce } = await nonceRes.json();
 
+      const checksumAddress = getAddress(address);
+
       const message = new SiweMessage({
         domain: window.location.host,
-        address,
+        address: checksumAddress,
         statement: 'Sign in to Meta Go - Sovereign Identity Protocol (Local Demo)',
         uri: window.location.origin,
         version: '1',

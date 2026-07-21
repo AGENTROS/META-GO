@@ -18,7 +18,7 @@ class RobloxConnector(PlatformConnector):
         token = payload.get("token")
         try:
             import jwt
-            from backend.config import cfg
+            from config import cfg
             secret = cfg.JWT_SECRET or "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
             
             decoded = jwt.decode(token, secret, algorithms=["HS256"])

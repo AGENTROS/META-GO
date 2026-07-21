@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import os
-from .config import cfg
+from config import cfg
 
 _app = None
 
@@ -37,7 +37,7 @@ def extract_embedding(image_bytes) -> list:
         # 2. Extract aligned face objects using InsightFace or simulator in TEST_MODE
         if cfg.TEST_MODE:
             try:
-                from .simulators import arcface_simulator
+                from simulators import arcface_simulator
             except Exception:
                 from simulators import arcface_simulator
             return arcface_simulator.extract_embedding(image_bytes)

@@ -7,9 +7,9 @@ from datetime import datetime
 
 # Assuming websocket manager is created
 try:
-    from websocket.manager import manager as ws_manager
+    from ws.manager import manager as ws_manager
 except ImportError:
-    from ..websocket.manager import manager as ws_manager
+    from ..ws.manager import manager as ws_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,7 +23,7 @@ async def get_secure_context(request: Request, address: str):
     Validates SIWE/JWT session using the existing monolithic verify_auth_address.
     Returns the database and redis client to avoid circular imports.
     """
-    from backend import server
+    import server
     # 1. AUTHENTICATION & AUTHORIZATION (Rule 1, 4, 9)
     await server.verify_auth_address(request, address)
     
@@ -135,7 +135,7 @@ async def get_recovery_center(request: Request, address: str):
     # We will fetch the user and simulate finding guardians from their profile, plus check global recovery sessions
     user = await db.users.find_one({"walletAddress": address.lower()})
     
-    from backend import server
+    import server
     sessions = []
     for s_id, sess in server.recovery_sessions.items():
         if sess.get("oldAddress", "").lower() == address.lower() or sess.get("newAddress", "").lower() == address.lower():

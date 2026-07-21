@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from backend import server
+import server
 
 async def setup_session(token, wallet):
     await server.db.sessions.delete_many({})

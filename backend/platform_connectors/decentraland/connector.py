@@ -21,9 +21,9 @@ class DecentralandConnector(PlatformConnector):
             import datetime
             import asyncio
             import requests
-            from backend.config import cfg
-            from backend.websocket.manager import manager
-            import backend.server as b_server
+            from config import cfg
+            from ws.manager import manager
+            import server as b_server
             db = b_server.client[b_server.DB_NAME]
             secret = cfg.JWT_SECRET or "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
             

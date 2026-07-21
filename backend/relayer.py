@@ -18,7 +18,7 @@ import threading
 from typing import Dict, Any, Optional
 
 from web3 import Web3
-from .config import cfg
+from config import cfg
 from eth_account import Account
 import redis
 
@@ -141,7 +141,7 @@ class RPCFailoverPool:
                     raise ConnectionError("Ping failed")
             except Exception as e:
                 try:
-                    from .observability import increment_counter
+                    from observability import increment_counter
                 except Exception:
                     from observability import increment_counter
                 increment_counter("rpc_failures_total")
@@ -252,7 +252,7 @@ class RedisNonceManager:
             self.r.ping()
         except Exception as e:
             try:
-                from .observability import increment_counter
+                from observability import increment_counter
             except Exception:
                 from observability import increment_counter
             increment_counter("redis_failures_total")
@@ -280,7 +280,7 @@ class RedisNonceManager:
                     raise RuntimeError("Nonce split-brain protection triggered. Halting startup.")
 
             try:
-                from .observability import set_gauge
+                from observability import set_gauge
             except Exception:
                 from observability import set_gauge
 
@@ -298,7 +298,7 @@ class RedisNonceManager:
             return True
         except Exception as e:
             try:
-                from .observability import increment_counter
+                from observability import increment_counter
             except Exception:
                 from observability import increment_counter
             increment_counter("redis_failures_total")
@@ -354,7 +354,7 @@ class RedisNonceManager:
             return self.r.incrby(self.key, 1) - 1
         except Exception as e:
             try:
-                from .observability import increment_counter
+                from observability import increment_counter
             except Exception:
                 from observability import increment_counter
             increment_counter("redis_failures_total")
@@ -416,7 +416,7 @@ class RelayerClient:
         MAX_TX_COST = MAX_GAS_LIMIT * MAX_GAS_PRICE
         
         try:
-            from .observability import increment_counter, set_gauge
+            from observability import increment_counter, set_gauge
         except Exception:
             from observability import increment_counter, set_gauge
 
