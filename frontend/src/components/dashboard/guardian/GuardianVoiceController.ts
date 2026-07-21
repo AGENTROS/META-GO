@@ -178,6 +178,7 @@ export class GuardianVoiceController {
         await speechParams.play();
       } else {
         this.setState('idle');
+      }
     } catch (err) {
       if (err && (typeof err !== 'object' || Object.keys(err).length > 0)) {
         console.error('Guardian voice controller error:', err);
