@@ -661,7 +661,7 @@ class TestBackendSecurity:
             os.environ["TEST_MODE"] = "0"
             os.environ["JWT_SECRET"] = "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026"
             
-            from backend.server import verify_proof, VerifyProofBody
+            from server import verify_proof, VerifyProofBody
             from fastapi import Request, HTTPException
             from unittest.mock import MagicMock
             import asyncio
@@ -696,8 +696,8 @@ class TestBackendSecurity:
             
             with pytest.raises(RuntimeError) as excinfo:
                 import importlib
-                import backend.relayer
-                importlib.reload(backend.relayer)
+                import relayer
+                importlib.reload(relayer)
             assert "CRITICAL SECURITY VIOLATION" in str(excinfo.value)
         finally:
             if orig_test_mode is not None:
@@ -708,7 +708,7 @@ class TestBackendSecurity:
                 os.environ.pop("ENV", None)
 
     def test_redis_outage_blocks_signing(self):
-        from backend.relayer import RedisNonceManager
+        from relayer import RedisNonceManager
         import redis
         
         with pytest.raises(RuntimeError) as excinfo:
@@ -722,7 +722,7 @@ class TestBackendSecurity:
         assert "Redis is unreachable" in str(excinfo.value)
 
     def test_invalid_groth16_proof_rejected(self):
-        from backend.zk_verifier import MockSnarkjsVerifier
+        from zk_verifier import MockSnarkjsVerifier
         proof = {
             "protocol": "groth16",
             "curve": "bn128",
@@ -735,8 +735,8 @@ class TestBackendSecurity:
         assert valid is False
 
     def test_reorg_reconciliation_rollback(self):
-        from backend.server import db
-        from backend.reconciliation import nightly_reconciliation
+        from server import db
+        from reconciliation import nightly_reconciliation
         from unittest.mock import MagicMock
         import asyncio
         
@@ -760,7 +760,7 @@ class TestBackendSecurity:
             
             assert await db.users.find_one({"walletAddress": addr}) is not None
             
-            from backend.relayer import relayer, RelayerClient
+            from relayer import relayer, RelayerClient
             orig_available = relayer.available
             orig_w3_prop = RelayerClient.w3
             orig_addresses = relayer.addresses
@@ -869,11 +869,11 @@ class TestBackendSecurity:
             os.environ.pop("DEPLOYER_KEY", None)
             
             import importlib
-            import backend.relayer
-            importlib.reload(backend.relayer)
+            import relayer
+            importlib.reload(relayer)
             
-            assert backend.relayer.IS_EPHEMERAL is True
-            assert len(backend.relayer.DEPLOYER_KEY) in (64, 66)
+            assert relayer.IS_EPHEMERAL is True
+            assert len(relayer.DEPLOYER_KEY) in (64, 66)
         finally:
             if orig_test_mode is not None:
                 os.environ["TEST_MODE"] = orig_test_mode
@@ -881,7 +881,7 @@ class TestBackendSecurity:
                 os.environ["DEPLOYER_KEY"] = orig_key
 
     def test_gas_circuit_breaker_activation(self):
-        from backend.relayer import relayer
+        from relayer import relayer
         if relayer.available():
             class FakeTx:
                 def build_transaction(self, details):
@@ -911,7 +911,7 @@ class TestBackendSecurity:
             req = MagicMock(spec=Request)
             req.url = URL("http://localhost/api/test/reset-rate-limits")
             
-            from backend.server import gate_test_endpoints
+            from server import gate_test_endpoints
             async def call_next(r):
                 return "called"
             res = asyncio.run(gate_test_endpoints(req, call_next))
@@ -925,7 +925,7 @@ class TestBackendSecurity:
                 os.environ.pop("JWT_SECRET", None)
 
     def test_backup_restore_drill(self):
-        from backend.backup_manager import BackupManager
+        from backup_manager import BackupManager
         import asyncio
         import os
         import secrets
