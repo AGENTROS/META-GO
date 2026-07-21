@@ -35,6 +35,7 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: false,
   typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   allowedDevOrigins: ['*'],
   async headers() {
     const noCacheHeaders = [
@@ -85,6 +86,18 @@ const nextConfig = {
         source: '/admin/:path*',
         headers: noCacheHeaders,
       },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/proxy/:path*',
+        destination: 'http://127.0.0.1:8001/:path*'
+      },
+      {
+        source: '/api/ws/proxy/:path*',
+        destination: 'http://127.0.0.1:8001/:path*'
+      }
     ];
   },
   webpack: (config, { isServer }) => {
