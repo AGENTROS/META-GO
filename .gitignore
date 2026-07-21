@@ -134,3 +134,6 @@ reports/
 test_reports/
 CSE PAPER/
 
+
+.env
+.env.*
