@@ -32,10 +32,19 @@ const securityHeaders = [
 ];
 
 /** @type {import('next').NextConfig} */
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const nextConfig = {
+  outputFileTracingRoot: path.join(__dirname, './'),
+  turbopack: {
+    root: path.join(__dirname, './'),
+  },
   reactStrictMode: false,
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   allowedDevOrigins: ['*'],
   async headers() {
     const noCacheHeaders = [
