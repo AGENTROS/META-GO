@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { verifyJWTTokenServer } from '@/lib/tokenVerifier';
+import { RealtimeProvider } from '@/components/layout/RealtimeProvider';
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -15,5 +16,5 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect('/auth');
   }
 
-  return <>{children}</>;
+  return <RealtimeProvider>{children}</RealtimeProvider>;
 }

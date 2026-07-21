@@ -54,7 +54,7 @@ class AsyncInMemoryCollection:
                     return False
         return True
 
-    async def insert_one(self, doc):
+    async def insert_one(self, doc, **kwargs):
         async with self._lock:
             d = copy.deepcopy(doc)
             if "_id" not in d:
@@ -62,14 +62,14 @@ class AsyncInMemoryCollection:
             self._docs.append(d)
             return type("R", (), {"inserted_id": d["_id"]})()
 
-    async def find_one(self, filter):
+    async def find_one(self, filter, **kwargs):
         async with self._lock:
             for d in self._docs:
                 if self._match_filter(d, filter):
                     return copy.deepcopy(d)
             return None
 
-    def find(self, filter=None):
+    def find(self, filter=None, **kwargs):
         filter = filter or {}
         matching_docs = []
         for d in list(self._docs):
@@ -77,7 +77,7 @@ class AsyncInMemoryCollection:
                 matching_docs.append(copy.deepcopy(d))
         return AsyncInMemoryCursor(matching_docs)
 
-    async def count_documents(self, filter):
+    async def count_documents(self, filter, **kwargs):
         async with self._lock:
             count = 0
             for d in self._docs:
@@ -85,7 +85,7 @@ class AsyncInMemoryCollection:
                     count += 1
             return count
 
-    async def delete_many(self, filter):
+    async def delete_many(self, filter, **kwargs):
         async with self._lock:
             initial_count = len(self._docs)
             new_docs = []
@@ -96,7 +96,7 @@ class AsyncInMemoryCollection:
             deleted_count = initial_count - len(self._docs)
             return type("R", (), {"deleted_count": deleted_count})()
 
-    async def update_many(self, filter, update):
+    async def update_many(self, filter, update, **kwargs):
         async with self._lock:
             modified_count = 0
             for idx, d in enumerate(self._docs):
@@ -109,7 +109,7 @@ class AsyncInMemoryCollection:
                     modified_count += 1
             return type("R", (), {"matched_count": modified_count, "modified_count": modified_count})()
 
-    async def update_one(self, filter, update, upsert=False):
+    async def update_one(self, filter, update, upsert=False, **kwargs):
         async with self._lock:
             for idx, d in enumerate(self._docs):
                 if self._match_filter(d, filter):

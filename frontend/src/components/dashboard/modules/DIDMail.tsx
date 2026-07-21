@@ -4,7 +4,7 @@ import { Mail, Send, Inbox, Star, Archive, Search, Lock, Edit3, CornerUpLeft } f
 
 const MOCK_MAILS = [
   { id: 1, from: 'vitalik.eth', subject: 'Ethereum 2.0 Identity Protocol Integration', preview: 'We should discuss how MetaGo can seamlessly integrate with the upcoming identity precompiles...', time: '10:42 AM', unread: true },
-  { id: 2, from: 'did:metago:0x89...342', subject: 'Encrypted: Biometric Vault Sync', preview: 'Your recent Soulbound Token transfer requires multi-sig approval. Please review the attached ZK proof.', time: 'Yesterday', unread: true },
+  { id: 2, from: 'User Identity', subject: 'Encrypted: Biometric Vault Sync', preview: 'Your recent Soulbound Token transfer requires multi-sig approval. Please review the attached ZK proof.', time: 'Yesterday', unread: true },
   { id: 3, from: 'Aave Governance', subject: 'Proposal 482 - Voting Required', preview: 'A new proposal regarding the collateralization of identity scores is live. Cast your vote securely.', time: 'Jul 12', unread: false },
   { id: 4, from: 'MetaGo Security', subject: 'Security Alert: New Device Login', preview: 'A new login was detected from IP 192.168.1.1. If this was not you, please lock your account immediately.', time: 'Jul 10', unread: false },
 ];

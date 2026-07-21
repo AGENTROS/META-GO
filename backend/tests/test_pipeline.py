@@ -14,7 +14,7 @@ import base64
 from silent_face_liveness import SilentFaceAntiSpoofing
 from whisper_voice_verifier import WhisperVoiceVerifier
 from ecapa_speaker_verifier import EcapaSpeakerVerifier
-from aasist_voice_spoof import AasistVoiceSpoof
+from aasist_voice_spoof import AasistVoiceSpoofer
 from deepfake_bench_detector import DeepfakeBenchDetector
 from risk_engine import BiometricRiskEngine
 
@@ -43,7 +43,7 @@ def test_whisper_voice_verifier():
     
     transcribed, accuracy, confidence = verifier.transcribe_and_verify(audio_bytes, "Verify my sovereign identity")
     # Silence check
-    assert transcribed == "[No Audio Detected]" or transcribed == ""
+    assert "VAD Failed" in transcribed or "[No Audio Detected]" in transcribed or transcribed == ""
     assert accuracy == 0.0
     assert confidence == 0.0
 
@@ -65,15 +65,15 @@ def test_ecapa_speaker_verifier():
     audio_bytes = wav_io.getvalue()
     
     vp1 = verifier.extract_voiceprint(audio_bytes)
-    assert "pitch" in vp1
-    assert "sub_bands" in vp1
+    assert "features" in vp1
+    assert "pitch" in vp1["features"]
     
     # Self similarity check
     match = verifier.verify_speaker(vp1, vp1)
     assert match > 80.0
 
 def test_aasist_voice_spoof():
-    aasist = AasistVoiceSpoof()
+    aasist = AasistVoiceSpoofer()
     
     # Synth WAV
     wav_io = io.BytesIO()
@@ -87,10 +87,9 @@ def test_aasist_voice_spoof():
     wav_file.close()
     audio_bytes = wav_io.getvalue()
     
-    spoof_risk, ai_prob, replay_prob = aasist.evaluate_spoof(audio_bytes)
-    assert 0.0 <= spoof_risk <= 100.0
-    assert 0.0 <= ai_prob <= 100.0
-    assert 0.0 <= replay_prob <= 100.0
+    is_human, liveness_score, reason = aasist.check_spoof(audio_bytes)
+    assert isinstance(is_human, bool)
+    assert 0.0 <= liveness_score <= 100.0
 
 def test_deepfake_bench_detector():
     df_detector = DeepfakeBenchDetector()

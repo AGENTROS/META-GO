@@ -35,8 +35,8 @@ DEPLOYER_KEY = os.environ.get("DEPLOYER_KEY")
 IS_EPHEMERAL = False
 
 # Hardening TEST_MODE configuration on startup
-is_test_mode = cfg.TEST_MODE
-env = cfg.ENV
+is_test_mode = getattr(cfg, 'TEST_MODE', False) or (os.environ.get("TEST_MODE") == "1")
+env = os.environ.get("ENV") or getattr(cfg, 'ENV', 'dev')
 mongo_url = cfg.MONGO_URL or os.environ.get("MONGO_URL", "")
 rpc_pool_urls = os.environ.get("RPC_POOL_URLS", "")
 

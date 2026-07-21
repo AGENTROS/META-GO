@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Activity, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useGuardianStore } from '@/store/guardianStore';
 
 const Guardian3D = dynamic(() => import('./Guardian3D'), {
   ssr: false,
@@ -32,9 +33,14 @@ export default function GuardianDashboardCard({ isConnected, unreadNotifs }: { i
     return () => observer.disconnect();
   }, []);
 
-  // Determine actual system status instead of hardcoding "Monitoring 24/7"
-  const guardianStatus = !isConnected ? 'Offline' : unreadNotifs > 0 ? 'Security Alert' : 'AI Guardian Ready';
-  const guardianState = !isConnected ? 'error' : unreadNotifs > 0 ? 'alert' : 'idle';
+  const { recommendations, status } = useGuardianStore();
+  
+  // Use backend recommendations for alerts
+  const latestAlert = recommendations.length > 0 ? recommendations[0] : null;
+  
+  // Determine actual system status
+  const guardianStatus = !isConnected ? 'Offline' : (latestAlert?.risk_score > 70 ? 'Security Alert' : 'AI Guardian Ready');
+  const guardianState = !isConnected ? 'error' : (latestAlert?.risk_score > 70 ? 'alert' : 'idle');
 
   return (
     <div className="card" id="guardian-dashboard-card" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -82,8 +88,8 @@ export default function GuardianDashboardCard({ isConnected, unreadNotifs }: { i
             </div>
             
             <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginTop: '12px', marginBottom: '4px' }}>Context</div>
-            <div style={{ fontSize: '13px', color: 'var(--violet)', fontWeight: 500 }}>
-              Identity & Security Linked
+            <div style={{ fontSize: '13px', color: 'var(--violet)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {latestAlert ? latestAlert.reason : 'Identity & Security Linked'}
             </div>
           </div>
         </div>

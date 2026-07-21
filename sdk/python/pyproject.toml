@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metago-sdk"
+version = "1.0.0"
+description = "Official Python SDK for the MetaGo Universal Identity Protocol."
+authors = [{ name = "MetaGo Protocol Team" }]
+dependencies = [
+    "websockets>=11.0",
+    "pydantic>=2.0"
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21"
+]
+
+[tool.setuptools]
+packages = ["metago"]

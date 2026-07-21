@@ -1,8 +1,14 @@
+'use client';
 import React from 'react';
 import AvatarViewer from '@/components/Identity/AvatarViewer';
 import { Shield, BadgeCheck, QrCode } from 'lucide-react';
+import { useIdentityStore } from '@/store/useIdentityStore';
+import { usePassportStore } from '@/store/passportStore';
 
 export default function IdentityPassportPage() {
+  const { did, walletAddress } = useIdentityStore();
+  const { verificationStatus, humanityStatus } = usePassportStore();
+
   return (
     <div className="w-full min-h-screen bg-[#020202] text-[#e5e2e1] p-8 font-sans">
       {/* Background glow effects */}
@@ -40,13 +46,15 @@ export default function IdentityPassportPage() {
                       CITIZEN <BadgeCheck className="w-8 h-8 text-[#4F46E5]" />
                     </h2>
                     <span className="px-3 py-1 mt-1 rounded-full bg-indigo-900/50 border border-[#4F46E5]/50 text-[#c3c0ff] text-xs font-mono tracking-wider shadow-[0_0_10px_rgba(79,70,229,0.5)]">
-                      LEVEL 1
+                      {humanityStatus.toUpperCase()}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-950/40 border border-emerald-500/30">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse" />
-                  <span className="text-emerald-400 text-xs font-mono tracking-wider font-semibold">ACTIVE</span>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${verificationStatus === 'verified' ? 'bg-emerald-950/40 border-emerald-500/30' : 'bg-red-950/40 border-red-500/30'}`}>
+                  <div className={`w-2 h-2 rounded-full shadow-[0_0_10px_currentColor] animate-pulse ${verificationStatus === 'verified' ? 'bg-emerald-400 text-emerald-400' : 'bg-red-400 text-red-400'}`} />
+                  <span className={`${verificationStatus === 'verified' ? 'text-emerald-400' : 'text-red-400'} text-xs font-mono tracking-wider font-semibold`}>
+                    {verificationStatus.toUpperCase()}
+                  </span>
                 </div>
               </div>
 
@@ -56,14 +64,14 @@ export default function IdentityPassportPage() {
                 <div className="flex flex-col gap-6">
                   <div>
                     <p className="text-[#918fa1] text-xs font-mono mb-2 tracking-wider">DID</p>
-                    <p className="font-mono text-sm tracking-wide bg-black/40 px-4 py-3 rounded-xl border border-white/5 text-[#22D3EE]">
-                      did:metago:0xabc123...c8d64
+                    <p className="font-mono text-sm tracking-wide bg-black/40 px-4 py-3 rounded-xl border border-white/5 text-[#22D3EE] overflow-hidden text-ellipsis">
+                      {did || 'Not generated'}
                     </p>
                   </div>
                   <div>
                     <p className="text-[#918fa1] text-xs font-mono mb-2 tracking-wider">WALLET</p>
-                    <p className="font-mono text-sm tracking-wide bg-black/40 px-4 py-3 rounded-xl border border-white/5 text-[#c7c4d8]">
-                      0xABc1...C8d64
+                    <p className="font-mono text-sm tracking-wide bg-black/40 px-4 py-3 rounded-xl border border-white/5 text-[#c7c4d8] overflow-hidden text-ellipsis">
+                      {walletAddress || 'Not connected'}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

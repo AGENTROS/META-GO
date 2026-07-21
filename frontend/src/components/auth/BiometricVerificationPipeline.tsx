@@ -158,7 +158,7 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
     try {
       stopCamera();
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 },
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
       streamRef.current = stream;
@@ -172,7 +172,7 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
       const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
       const detector = await faceLandmarksDetection.createDetector(model, {
         runtime: 'mediapipe',
-        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/',
         maxFaces: 2,
         refineLandmarks: false,
       });
@@ -180,9 +180,9 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
       setModelLoading(false);
 
       runRealTimeFaceScan();
-    } catch (err) {
+    } catch (err: any) {
       setModelLoading(false);
-      toast.error('Could not activate camera. Please grant permission.');
+      toast.error(`Camera or Model Error: ${err.message || err.toString()}`);
     }
   };
 
@@ -242,10 +242,22 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
 
     ctx.fillStyle = 'rgba(59, 130, 246, 0.4)';
     for (const p of kp) {
+      if (!p) continue;
+      const x = p.x !== undefined ? p.x : p[0];
+      const y = p.y !== undefined ? p.y : p[1];
+      if (x === undefined || y === undefined) continue;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 1.0, 0, Math.PI * 2);
+      ctx.arc(x, y, 1.0, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // DRAW DEBUG INFO
+    ctx.fillStyle = 'lime';
+    ctx.font = '20px monospace';
+    ctx.fillText(`kp.length: ${kp.length}`, 20, 30);
+    ctx.fillText(`video: ${canvas.width}x${canvas.height}`, 20, 60);
+    ctx.fillText(`eyeDist: ${eyeDist.toFixed(2)}`, 20, 90);
+    ctx.fillText(`ratio: ${ratio.toFixed(2)}`, 20, 120);
 
     let color = 'rgba(59, 130, 246, 0.7)';
     const challenge = livenessChallengeRef.current;
@@ -408,14 +420,21 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
               return;
             }
 
-            const kp = faces[0].keypoints;
-            const leftEye = kp[33];
-            const rightEye = kp[263];
-            const topEyepid = kp[159];
-            const bottomEyepid = kp[145];
-            const nose = kp[4];
+            const f = faces[0];
+            const kp = f.keypoints || f.landmarks || f.scaledMesh || f.mesh;
+            if (kp && kp.length > 0) {
+              const getPt = (p: any) => (p && p.x !== undefined) ? p : (p ? { x: p[0], y: p[1], z: p[2] } : {x:0, y:0, z:0});
+              const leftEye = getPt(kp[33]);
+              const rightEye = getPt(kp[263]);
+              const topEyepid = getPt(kp[159]);
+              const bottomEyepid = getPt(kp[145]);
+              const nose = getPt(kp[4]);
 
-            if (leftEye && rightEye && nose && topEyepid && bottomEyepid) {
+              if (!leftEye || !rightEye || !nose || !topEyepid || !bottomEyepid) {
+                setFaceError(`Missing keypoints! kp.length: ${kp.length}`);
+              }
+
+              if (leftEye && rightEye && nose && topEyepid && bottomEyepid) {
               const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y);
 
               // 1. Distance Check
@@ -538,6 +557,7 @@ export function BiometricVerificationPipeline({ onComplete, mode = 'verify' }: V
                     }
                   }
                 }
+              }
               }
             }
           } else {

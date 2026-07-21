@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "moduleResolution": "node",
+    "strict": true,
+    "lib": ["es2020", "dom"],
+    "baseUrl": ".",
+    "skipLibCheck": true,
+    "paths": {
+      "~system/*": ["node_modules/@dcl/sdk/system-types/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

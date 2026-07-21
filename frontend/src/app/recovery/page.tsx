@@ -361,7 +361,7 @@ export default function RecoveryPage() {
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-[8px] font-mono text-zinc-450 uppercase">Original DID to Recover</span>
-                    <NeonInput value={recoveryDid} onChange={e => setRecoveryDid(e.target.value)} placeholder="did:metago:0x..." />
+                    <NeonInput value={recoveryDid} onChange={e => setRecoveryDid(e.target.value)} placeholder="did:metago:..." />
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-[8px] font-mono text-zinc-450 uppercase">New Wallet Address (To Migrate to)</span>

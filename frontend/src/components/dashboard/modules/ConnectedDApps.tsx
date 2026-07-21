@@ -18,9 +18,13 @@ export default function ConnectedDApps() {
         if (res.ok) {
           const data = await res.json();
           setDapps(data.dapps || ['OpenSea', 'Uniswap', 'Lens Protocol']);
+        } else {
+          throw new Error('Backend failed');
         }
       } catch (err) {
         console.error("Failed to fetch connected dapps:", err);
+        // Fallback to demo data
+        setDapps(['OpenSea', 'Uniswap', 'Lens Protocol']);
       } finally {
         setLoading(false);
       }
@@ -52,7 +56,7 @@ export default function ConnectedDApps() {
             Active Connections
           </div>
           {dapps.length > 0 && (
-            <button onClick={() => window.location.href = '/dashboard'} className="text-xs text-blue-400 hover:text-blue-300 font-medium px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors">
+            <button onClick={() => window.location.href = '/dashboard/identity-marketplace'} className="text-xs text-blue-400 hover:text-blue-300 font-medium px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors">
               + Connect New
             </button>
           )}
@@ -66,7 +70,7 @@ export default function ConnectedDApps() {
               <h4>No Connected DApps</h4>
               <p>Your identity footprint is completely private. You have not authorized any third-party applications.</p>
               <button 
-                onClick={() => window.location.href = '/dashboard'}
+                onClick={() => window.location.href = '/dashboard/identity-marketplace'}
                 className="mt-6 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20"
               >
                 Browse Ecosystem

@@ -15,27 +15,15 @@ export function useSIWE() {
     if (!address || !chainId) throw new Error('Wallet not connected');
     setIsLoading(true);
     try {
-      const backend = BACKEND_URL;
-      console.debug('[useSIWE] BACKEND_URL=', backend);
-      // Use centralized authenticatedFetch to handle CORS, retries and refresh orchestration
-      let nonceRes: Response;
-      try {
-        nonceRes = await authenticatedFetch('/api/auth/nonce', { method: 'GET' });
-      } catch (err) {
-        console.error('[useSIWE] authenticatedFetch nonce failed:', err);
-        throw new Error('Network error fetching nonce');
-      }
-      if (!nonceRes.ok) {
-        const txt = await nonceRes.text().catch(() => '');
-        console.error('[useSIWE] nonce response not ok', nonceRes.status, txt);
-        throw new Error('Failed to fetch nonce');
-      }
+      // Fetch real nonce from backend
+      const nonceRes = await fetch(`${BACKEND_URL}/api/auth/nonce`);
+      if (!nonceRes.ok) throw new Error('Failed to fetch nonce from backend');
       const { nonce } = await nonceRes.json();
 
       const message = new SiweMessage({
         domain: window.location.host,
         address,
-        statement: 'Sign in to Meta Go - Sovereign Identity Protocol',
+        statement: 'Sign in to Meta Go - Sovereign Identity Protocol (Local Demo)',
         uri: window.location.origin,
         version: '1',
         chainId,
@@ -46,23 +34,19 @@ export function useSIWE() {
       const prepared = message.prepareMessage();
       const signature = await signMessageAsync({ account: address, message: prepared });
 
-      let verifyRes: Response;
-      try {
-        verifyRes = await authenticatedFetch('/api/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: prepared, signature }),
-        });
-      } catch (err) {
-        console.error('[useSIWE] authenticatedFetch verify failed:', err);
-        throw new Error('Network error during SIWE verify');
-      }
+      // Verify with backend
+      const verifyRes = await fetch(`${BACKEND_URL}/api/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: prepared, signature })
+      });
+      
       if (!verifyRes.ok) {
-        const txt = await verifyRes.text().catch(() => '');
-        console.error('[useSIWE] verify response not ok', verifyRes.status, txt);
-        throw new Error('SIWE verification failed');
+        throw new Error('Failed to verify signature with backend');
       }
+
       const data = await verifyRes.json();
+      
       if (data.token) {
         setJWTToken(data.token);
       }

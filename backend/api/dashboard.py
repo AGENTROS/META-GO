@@ -642,7 +642,7 @@ async def get_notifications(request: Request, address: str):
 # 4. WEBSOCKETS (REAL-TIME ENGINE)
 # ---------------------------------------------------------
 
-@router.websocket("/ws/dashboard/{address}")
+@router.websocket("/api/ws/dashboard/{address}")
 async def dashboard_websocket(websocket: WebSocket, address: str):
     # For websockets, we could inject dependencies and auth, but it's tricky with native protocols.
     # Typically, you'd pass the session token as a query param or header in the handshake.

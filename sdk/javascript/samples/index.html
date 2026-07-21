@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MetaGo Web Sandbox</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: white; padding: 40px; }
+        .console { background: #111; color: #0f0; padding: 15px; border-radius: 8px; height: 300px; overflow-y: scroll; font-family: monospace; border: 1px solid #333; }
+        button { background: #4f46e5; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #4338ca; }
+    </style>
+</head>
+<body>
+    <h1>MetaGo Browser Client Sandbox</h1>
+    <p>This sandbox loads the native JavaScript SDK to securely stream Zero-Knowledge Presence payloads in real-time.</p>
+    
+    <button id="connectBtn">Connect to MetaGo Network</button>
+    <br><br>
+    
+    <div class="console" id="logs">
+        [System] Welcome to the Web Sandbox...<br>
+    </div>
+
+    <script type="module">
+        import { MetaGo } from '../src/index.js';
+
+        const logs = document.getElementById('logs');
+        function log(msg) { logs.innerHTML += `> ${msg}<br>`; logs.scrollTop = logs.scrollHeight; }
+
+        document.getElementById('connectBtn').onclick = async () => {
+            document.getElementById('connectBtn').disabled = true;
+            log("Booting MetaGo Web SDK...");
+            
+            // Target the REST/WS routing layer in the backend
+            const sdk = new MetaGo("ws://localhost:8000/api/v1/connectors/js/stream");
+            
+            try {
+                await sdk.connect();
+                log("WebSocket Layer Opened. Executing Handshake...");
+                
+                const authSuccess = await sdk.authenticate("mock_valid_token");
+                if (authSuccess) {
+                    log("✅ Auth Success! Socket state upgraded.");
+                    log("Subscribed to Event Bus Topic: 'Presence.Active'");
+                    
+                    sdk.subscribe("Presence.Active", (payload) => {
+                        log(`[Presence Sync] Remote Player Vector -> X:${payload.position[0]} Y:${payload.position[1]} Z:${payload.position[2]}`);
+                    });
+                } else {
+                    log("❌ Auth Failed. Guardian rejected token.");
+                }
+            } catch (err) {
+                log("❌ Connection Error: " + err);
+            }
+        };
+    </script>
+</body>
+</html>

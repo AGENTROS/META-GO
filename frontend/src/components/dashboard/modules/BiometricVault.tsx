@@ -49,7 +49,7 @@ export default function BiometricVault() {
         setItems(d.items || []);
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Vault fetch blocked by extension or network", err);
     } finally {
       setLoading(false);
     }

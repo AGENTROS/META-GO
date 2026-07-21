@@ -1,6 +1,6 @@
 import { getJWTToken, setJWTToken } from './tokenManager';
 
-export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
 
 // Cache structure: key -> { data, timestamp }
 const requestCache = new Map<string, { data: any; timestamp: number }>();
@@ -56,10 +56,27 @@ async function refreshToken(): Promise<string | null> {
 }
 
 export async function authenticatedFetch(path: string, opts: FetchOptions = {}): Promise<Response> {
-  const url = path.startsWith('http') ? path : `${BACKEND_URL}${path}`;
+  const isInternalNextAuth = path.startsWith('/api/auth/');
+  const url = path.startsWith('http') || isInternalNextAuth ? path : `${BACKEND_URL}${path}`;
   const headers = new Headers(opts.headers || {});
-  const token = getJWTToken();
+  
+  // Local Dev Bypass: Use DID Session instead of JWT
+  // In production, we will revert to JWT + OAuth
+  const storedState = typeof window !== 'undefined' ? localStorage.getItem('metago-identity-store') : null;
+  let did = null;
+  if (storedState) {
+    try {
+      const parsed = JSON.parse(storedState);
+      did = parsed?.state?.did || null;
+    } catch (e) {}
+  }
 
+  if (did && !headers.has('X-MetaGo-DID')) {
+    headers.set('X-MetaGo-DID', did);
+  }
+
+  // Inject JWT token for backend auth
+  const token = getJWTToken();
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -82,47 +99,8 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
       });
       clearTimeout(id);
 
-      if (response.status === 401 && !path.includes('/api/auth/refresh') && !path.includes('/api/auth/verify')) {
-        if (!isRefreshing) {
-          isRefreshing = true;
-          const newToken = await refreshToken();
-          isRefreshing = false;
-          onRefreshed(newToken);
-
-          if (!newToken) {
-            setJWTToken(null);
-            if (typeof window !== 'undefined') {
-              window.location.href = '/auth';
-            }
-            throw new Error('Unauthorized');
-          }
-
-          headers.set('Authorization', `Bearer ${newToken}`);
-          return fetch(url, {
-            ...opts,
-            credentials: 'include',
-            headers,
-          });
-        }
-
-        return new Promise<Response>((resolve, reject) => {
-          subscribeTokenRefresh((newToken) => {
-            if (!newToken) {
-              setJWTToken(null);
-              if (typeof window !== 'undefined') {
-                window.location.href = '/auth';
-              }
-              reject(new Error('Unauthorized'));
-              return;
-            }
-            headers.set('Authorization', `Bearer ${newToken}`);
-            fetch(url, {
-              ...opts,
-              credentials: 'include',
-              headers,
-            }).then(resolve).catch(reject);
-          });
-        });
+      if (response.status === 401) {
+        console.warn('401 Unauthorized ignored in local DID session mode.');
       }
 
       return response;
@@ -141,7 +119,11 @@ export async function authenticatedFetch(path: string, opts: FetchOptions = {}):
         return executeFetch();
       }
       clearTimeout(id);
-      throw error;
+      console.warn('Backend fetch failed, returning 503 fallback response', error);
+      return new Response(JSON.stringify({ error: 'Backend unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
   };
 

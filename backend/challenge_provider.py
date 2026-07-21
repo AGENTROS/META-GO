@@ -171,9 +171,19 @@ _FIXED_CORPUS = [
 # ---------------------------------------------------------------------------
 def _generate_corpus() -> List[str]:
     """
-    Return the fixed corpus of high-quality phrases.
+    Return the fixed corpus plus 10,000 randomly generated grammar combinations.
     """
-    return list(_FIXED_CORPUS)
+    corpus = list(_FIXED_CORPUS)
+    # Generate 10000 random grammatical combinations to ensure massive variety
+    import random
+    for _ in range(10000):
+        # 50% chance to include adverb
+        if random.random() > 0.5:
+            phrase = f"{random.choice(_SUBJECTS)} {random.choice(_ADVERBS)} {random.choice(_VERBS)} {random.choice(_OBJECTS)} {random.choice(_LOCATIONS)}"
+        else:
+            phrase = f"{random.choice(_SUBJECTS)} {random.choice(_VERBS)} {random.choice(_OBJECTS)} {random.choice(_LOCATIONS)}"
+        corpus.append(phrase)
+    return list(set(corpus))  # Ensure uniqueness
 
 
 

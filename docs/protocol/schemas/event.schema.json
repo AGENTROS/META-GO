@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MetaGoEvent",
+  "description": "The universal envelope wrapping all MetaGo protocol payloads.",
+  "type": "object",
+  "properties": {
+    "version": { 
+        "type": "string", 
+        "pattern": "^[0-9]+\\.[0-9]+$" 
+    },
+    "event": { 
+        "type": "string" 
+    },
+    "timestamp": { 
+        "type": "number" 
+    },
+    "payload": { 
+        "type": "object" 
+    }
+  },
+  "required": ["version", "event", "timestamp", "payload"],
+  "additionalProperties": false
+}

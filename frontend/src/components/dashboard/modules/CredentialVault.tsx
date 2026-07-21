@@ -1,51 +1,62 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { Shield, CreditCard, Lock, Fingerprint, Eye, Share2, Download, AlertCircle } from 'lucide-react';
 
 export default function CredentialVault() {
   const [credentials, setCredentials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   const { address } = useAccount();
   const dummyAddress = address;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const DEMO_CREDENTIALS = [
-    { id: 'demo-zk-001', type: 'Aadhaar Identity Proof (zk-SNARK)', issuer: 'UIDAI via ZK Verifier', issuedAt: '2026-07-12', metadata: { claim: 'aadhaar_verified', doc: 'Aadhaar Card' }, is_zk: true },
-    { id: 'demo-sbt-001', type: 'Passport Verification SBT', issuer: 'MetaGo Document Vault', issuedAt: '2026-07-10', metadata: { country: 'India', doc_type: 'Passport' }, is_zk: false },
-    { id: 'demo-zk-002', type: 'Age Verification (zk-SNARK)', issuer: 'ZK Verifier Network', issuedAt: '2026-07-14', metadata: { claim: 'age >= 18', source: 'PAN Card' }, is_zk: true },
-    { id: 'demo-sbt-002', type: 'University Degree Certificate', issuer: 'Delhi University (On-Chain)', issuedAt: '2026-06-28', metadata: { degree: 'B.Tech CS', grade: 'First Class' }, is_zk: false },
-    { id: 'demo-sbt-003', type: 'KYC Compliance Badge', issuer: 'Binance Global', issuedAt: '2026-07-08', metadata: { tier: 'Level 2', region: 'Global' }, is_zk: false },
-    { id: 'demo-zk-003', type: 'Driving License Proof (zk-SNARK)', issuer: 'ZK Verifier Network', issuedAt: '2026-07-15', metadata: { claim: 'valid_license', doc: 'Driving License' }, is_zk: true },
-  ];
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploading(true);
+    // Simulate ZK proof generation delay
+    setTimeout(() => {
+      setUploading(false);
+      setCredentials(prev => [
+        {
+          id: `new-zk-${Date.now()}`,
+          type: `${file.name.split('.')[0]} Proof (zk-SNARK)`,
+          issuer: 'Local ZK Verifier',
+          issuedAt: new Date().toISOString().split('T')[0],
+          metadata: { claim: 'verified_document', doc: file.name, size: `${(file.size / 1024).toFixed(1)} KB` },
+          is_zk: true
+        },
+        ...prev
+      ]);
+      // Reset input so the same file can be uploaded again if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }, 2000);
+  };
 
   useEffect(() => {
-    async function fetchVault() {
-      if (!address) { setCredentials(DEMO_CREDENTIALS); setLoading(false); return; }
-      try {
-        const res = await fetch(`http://localhost:8001/api/dashboard/vault/credentials?address=${dummyAddress}`);
-        if (res.ok) {
-          const data = await res.json();
-          const creds = data.credentials || [];
-          setCredentials(creds.length > 0 ? creds : DEMO_CREDENTIALS);
-        } else {
-          setCredentials(DEMO_CREDENTIALS);
-        }
-      } catch (err) {
-        // Backend not available — use demo data
-        setCredentials(DEMO_CREDENTIALS);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchVault();
-  }, [address]);
+    // Simulate fetching credentials
+    setTimeout(() => {
+      setCredentials([
+        { id: 'demo-zk-001', type: 'Aadhaar Identity Proof (zk-SNARK)', issuer: 'UIDAI via ZK Verifier', issuedAt: '2026-07-12', metadata: { claim: 'aadhaar_verified', doc: 'Aadhaar Card' }, is_zk: true },
+        { id: 'demo-sbt-002', type: 'Binance KYC Compliance', issuer: 'Binance Global', issuedAt: '2026-06-20', metadata: { tier: '2', risk: 'low' }, is_zk: false },
+        { id: 'demo-zk-003', type: 'Age > 18 Proof (zk-SNARK)', issuer: 'Gov ZK Node', issuedAt: '2026-07-15', metadata: { claim: 'age_verified', threshold: '18+' }, is_zk: true }
+      ]);
+      setLoading(false);
+    }, 1000);
+  }, []);
 
   return (
     <>
-      <div className="page-head">
+      <div className="page-head flex justify-between items-start">
         <div>
-          <div className="page-eyebrow">Data Sovereignty</div>
+          <div className="page-eyebrow">Zero-Knowledge Storage</div>
           <h1 className="page-title">
             <div className="picon"><Shield size={18} /></div>
             Credential Vault
@@ -53,6 +64,26 @@ export default function CredentialVault() {
           <p className="page-desc">
             Manage your Zero-Knowledge proofs and Soulbound Tokens securely.
           </p>
+        </div>
+        <div>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            style={{ display: 'none' }} 
+            accept=".pdf,.png,.jpg,.jpeg,.json" 
+          />
+          <button 
+            onClick={handleUploadClick}
+            disabled={uploading}
+            className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg font-medium transition-colors shadow-lg shadow-blue-500/20 text-sm flex items-center gap-2"
+          >
+            {uploading ? (
+              <span className="flex items-center gap-2"><div className="pulse"></div> Generating Proof...</span>
+            ) : (
+              <><span style={{ fontSize: '18px', lineHeight: '1' }}>+</span> Upload Credential</>
+            )}
+          </button>
         </div>
       </div>
 
@@ -68,7 +99,7 @@ export default function CredentialVault() {
               <Lock size={48} style={{ opacity: 0.2, margin: '0 auto 16px auto', display: 'block' }}/>
               Your vault is empty. No Zero-Knowledge Proofs or SBTs found.
               <br/><br/>
-              <button className="primary-btn">Mint Genesis Credential</button>
+              <button className="primary-btn" onClick={handleUploadClick}>Mint Genesis Credential</button>
             </div>
           ) : credentials.map((cred, i) => (
             <div className="card" key={i} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -92,8 +123,20 @@ export default function CredentialVault() {
               )}
 
               <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <button className="icon-btn" style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}><Eye size={14}/> View</button>
-                <button className="icon-btn" style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}><Share2 size={14}/> Share</button>
+                <button 
+                  className="icon-btn" 
+                  style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}
+                  onClick={() => alert(`Decrypting ZK payload for ${cred.type}...\n\n${JSON.stringify(cred.metadata || {}, null, 2)}`)}
+                >
+                  <Eye size={14}/> View
+                </button>
+                <button 
+                  className="icon-btn" 
+                  style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: '8px' }}
+                  onClick={() => alert(`Generating single-use ZK proof link for: ${cred.type}`)}
+                >
+                  <Share2 size={14}/> Share
+                </button>
               </div>
             </div>
           ))}

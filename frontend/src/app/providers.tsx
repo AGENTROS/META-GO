@@ -9,6 +9,7 @@ import { getJWTToken } from '@/lib/tokenManager';
 
 
 import { LazyMotion, domMax } from 'framer-motion';
+import { DashboardDataProvider } from '@/store/providers/DashboardDataProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -44,7 +45,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <LazyMotion features={domMax} strict>
-            {children}
+            <DashboardDataProvider>
+              {children}
+            </DashboardDataProvider>
           </LazyMotion>
           <Toaster
             position="top-right"

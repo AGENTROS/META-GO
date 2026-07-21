@@ -43,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             }, true);
           `
         }} />
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossOrigin="anonymous"></script>
       </head>
       <body suppressHydrationWarning>
         <HydrationFix />

@@ -67,8 +67,10 @@ export default function MetaverseFootprint() {
 
     const fetchFootprint = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
-        const res = await authenticatedFetch(`${backendUrl}/api/dashboard/metaverse/footprint?address=${address}`, {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
+        const url = `${backendUrl}/api/dashboard/metaverse/footprint?address=${address}`;
+        console.log('Fetching footprint:', url);
+        const res = await authenticatedFetch(url, {
           credentials: 'include',
           signal: controller.signal,
         });

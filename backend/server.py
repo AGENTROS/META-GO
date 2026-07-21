@@ -23,11 +23,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from .config import cfg
+from backend.config import cfg
 import jwt
 import requests
 from web3 import Web3
-from .zk_verifier import MockSnarkjsVerifier, poseidon_sim_hash
+from backend.zk_verifier import MockSnarkjsVerifier, poseidon_sim_hash
 
 logger = logging.getLogger("server")
 
@@ -48,15 +48,17 @@ else:
     app = FastAPI(title="Meta Go IDaaS BFF", version="1.0.0")
 
 # --- MetaGo OS Dashboard Routes Integration ---
-from .api.dashboard import router as dashboard_router
-from .api.intelligence import router as intelligence_router
-from .api.privacy import router as privacy_router
-from .api.integrations import integrations_router
+from backend.api.dashboard import router as dashboard_router
+from backend.api.intelligence import router as intelligence_router
+from backend.api.privacy import router as privacy_router
+from backend.api.integrations import integrations_router
+from backend.platform_connectors.api.router import router as platform_connectors_router
 
 app.include_router(dashboard_router)
 app.include_router(intelligence_router)
 app.include_router(privacy_router)
 app.include_router(integrations_router)
+app.include_router(platform_connectors_router, prefix="/api/v1/connectors")
 
 from functools import wraps
 from fastapi.responses import JSONResponse
@@ -140,7 +142,7 @@ if cfg.TEST_MODE:
     try:
         from .testing_db import get_test_db
     except Exception:
-        from testing_db import get_test_db
+        from .testing_db import get_test_db
     db = get_test_db()
 
 SESSION_COOKIE = "metago_session"
@@ -693,7 +695,22 @@ async def verify_auth_address(request: Request, wallet_address: str):
         raise HTTPException(status_code=401, detail="Authentication required")
     sess = await db.sessions.find_one({"token": token})
     if not sess:
-        raise HTTPException(status_code=401, detail="Session expired or invalid")
+        if cfg.TEST_MODE:
+            # Auto-recreate session from JWT to survive in-memory DB restarts
+            try:
+                payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+                wallet = payload.get("walletAddress", wallet_address.lower())
+                await db.sessions.insert_one({
+                    "token": token,
+                    "walletAddress": wallet,
+                    "expiresAt": datetime.fromtimestamp(time.time() + SESSION_TTL, tz=timezone.utc),
+                    "createdAt": datetime.now(timezone.utc)
+                })
+                sess = {"token": token, "walletAddress": wallet, "expiresAt": time.time() + SESSION_TTL}
+            except Exception:
+                raise HTTPException(status_code=401, detail="Session expired or invalid")
+        else:
+            raise HTTPException(status_code=401, detail="Session expired or invalid")
     
     expires_val = sess.get("expiresAt", 0)
     if isinstance(expires_val, datetime):
@@ -1143,7 +1160,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
             try:
                 from .observability import increment_counter
             except Exception:
-                from observability import increment_counter
+                from .observability import increment_counter
             increment_counter("duplicate_handles_total")
             raise HTTPException(
                 status_code=409,
@@ -1186,7 +1203,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
                 try:
                     from .observability import increment_counter
                 except Exception:
-                    from observability import increment_counter
+                    from .observability import increment_counter
                 increment_counter("duplicate_nullifiers_total")
                 raise HTTPException(
                     status_code=409,
@@ -1875,7 +1892,7 @@ def get_face_liveness_model():
             try:
                 from .simulators import face_liveness_stub as stub
             except Exception:
-                from simulators import face_liveness_stub as stub
+                from .simulators import face_liveness_stub as stub
             face_liveness_model = stub
         else:
             try:
@@ -1902,7 +1919,7 @@ def get_ecapa_speaker_model():
             try:
                 from .simulators import ecapa_stub as stub
             except Exception:
-                from simulators import ecapa_stub as stub
+                from .simulators import ecapa_stub as stub
             ecapa_speaker_model = stub
         else:
             try:
@@ -1980,7 +1997,7 @@ def get_aasist_spoof_model():
             try:
                 from .simulators import aasist_stub as stub
             except Exception:
-                from simulators import aasist_stub as stub
+                from .simulators import aasist_stub as stub
             aasist_spoof_model = stub
         else:
             try:
@@ -2000,7 +2017,7 @@ def get_deepfake_detector_model():
             try:
                 from .simulators import deepfake_stub as stub
             except Exception:
-                from simulators import deepfake_stub as stub
+                from .simulators import deepfake_stub as stub
             deepfake_detector_model = stub
         else:
             try:
@@ -2020,7 +2037,7 @@ def get_risk_engine():
             try:
                 from .simulators import risk_engine_stub as stub
             except Exception:
-                from simulators import risk_engine_stub as stub
+                from .simulators import risk_engine_stub as stub
             risk_engine = stub
         else:
             try:
@@ -2127,7 +2144,7 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
 
         # Call arcface embedding verifier if user has stored face template
         if user and "biometricTemplate" in user and "embedding" in user["biometricTemplate"]:
-            from arcface_verifier import extract_embedding, compute_similarity
+            from .arcface_verifier import extract_embedding, compute_similarity
             current_emb = extract_embedding(image_bytes)
             stored_emb = user["biometricTemplate"]["embedding"]
             similarity = compute_similarity(current_emb, stored_emb)
@@ -2185,11 +2202,10 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
                 # Auto-enroll for first-time users
                 voice_match = 100.0
                 if user:
-                    import asyncio
-                    asyncio.create_task(db.users.update_one(
+                    await db.users.update_one(
                         {"walletAddress": addr},
                         {"$set": {"voiceprint": current_emb}}
-                    ))
+                    )
                 
             if voice_match < 55:
                 voice_error = "Voice does not match enrolled user."
@@ -2444,7 +2460,7 @@ async def relay(body: RelayBody, request: Request):
         try:
             from .observability import increment_counter
         except Exception:
-            from observability import increment_counter
+            from .observability import increment_counter
         increment_counter("duplicate_nullifiers_total")
         raise HTTPException(status_code=409, detail="Nullifier already used (replay)")
     await db.used_nullifiers.insert_one({
@@ -2917,7 +2933,7 @@ async def prometheus_metrics():
     try:
         from .observability import get_prometheus_exposition
     except Exception:
-        from observability import get_prometheus_exposition
+        from .observability import get_prometheus_exposition
     
     content = get_prometheus_exposition()
     return Response(content=content, media_type="text/plain; version=0.0.4")
@@ -2965,7 +2981,7 @@ async def get_system_status():
         blockchain_status = "online" if relayer.available() else "offline"
     except Exception:
         try:
-            from relayer import relayer
+            from .relayer import relayer
             blockchain_status = "online" if relayer.available() else "offline"
         except Exception:
             blockchain_status = "offline"
@@ -4252,6 +4268,6 @@ async def startup_event():
     try:
         from .reconciliation import start_reconciliation_tasks
     except Exception:
-        from reconciliation import start_reconciliation_tasks
+        from .reconciliation import start_reconciliation_tasks
     start_reconciliation_tasks(db)
 
