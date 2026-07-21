@@ -1,6 +1,9 @@
 import { getJWTToken, setJWTToken } from './tokenManager';
 
-export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001';
+const isServer = typeof window === 'undefined';
+export const BACKEND_URL = isServer 
+  ? (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001')
+  : '/api/proxy';
 
 // Cache structure: key -> { data, timestamp }
 const requestCache = new Map<string, { data: any; timestamp: number }>();
