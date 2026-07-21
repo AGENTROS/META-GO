@@ -101,11 +101,11 @@ const nextConfig = {
     return [
       {
         source: '/api/proxy/:path*',
-        destination: 'http://127.0.0.1:8001/:path*'
+        destination: 'https://meta-go.onrender.com/:path*'
       },
       {
         source: '/api/ws/proxy/:path*',
-        destination: 'http://127.0.0.1:8001/:path*'
+        destination: 'https://meta-go.onrender.com/:path*'
       }
     ];
   },

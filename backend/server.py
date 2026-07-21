@@ -23,11 +23,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
-from backend.config import cfg
+from config import cfg
 import jwt
 import requests
 from web3 import Web3
-from backend.zk_verifier import MockSnarkjsVerifier, poseidon_sim_hash
+from zk_verifier import MockSnarkjsVerifier, poseidon_sim_hash
 
 logger = logging.getLogger("server")
 
@@ -48,11 +48,11 @@ else:
     app = FastAPI(title="Meta Go IDaaS BFF", version="1.0.0")
 
 # --- MetaGo OS Dashboard Routes Integration ---
-from backend.api.dashboard import router as dashboard_router
-from backend.api.intelligence import router as intelligence_router
-from backend.api.privacy import router as privacy_router
-from backend.api.integrations import integrations_router
-from backend.platform_connectors.api.router import router as platform_connectors_router
+from api.dashboard import router as dashboard_router
+from api.intelligence import router as intelligence_router
+from api.privacy import router as privacy_router
+from api.integrations import integrations_router
+from platform_connectors.api.router import router as platform_connectors_router
 
 app.include_router(dashboard_router)
 app.include_router(intelligence_router)

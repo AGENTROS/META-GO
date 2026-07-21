@@ -7,9 +7,9 @@ from datetime import datetime
 
 # Assuming websocket manager is created
 try:
-    from websocket.manager import manager as ws_manager
+    from ws.manager import manager as ws_manager
 except ImportError:
-    from ..websocket.manager import manager as ws_manager
+    from ..ws.manager import manager as ws_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
