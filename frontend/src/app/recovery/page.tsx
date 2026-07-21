@@ -8,8 +8,12 @@ import { useIdentityStore } from '@/store/useIdentityStore';
 import { Users, Plus, Trash2, Shield, ChevronRight, Share2, Clipboard, RefreshCw, KeyRound, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract } from 'wagmi';
+import { CONTRACTS } from '@/lib/wagmi.config';
 import { clsx } from 'clsx';
+import { hardhat } from 'wagmi/chains';
+import { authenticatedFetch as fetch } from '@/lib/api';
+
 
 type Tab = 'CONFIG' | 'CONSOLE';
 
@@ -24,6 +28,7 @@ async function sha256(message: string): Promise<string> {
 export default function RecoveryPage() {
   const { guardians, setGuardians, addNotification, walletAddress, did } = useIdentityStore();
   const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
 
   const [activeTab, setActiveTab] = useState<Tab>('CONFIG');
   const [newGuardian, setNewGuardian] = useState('');
@@ -83,9 +88,45 @@ export default function RecoveryPage() {
       return;
     }
 
-    const toastId = toast.loading('Hashing passphrase and registering setup...');
+    const toastId = toast.loading('Hashing passphrase...');
     try {
       const hash = await sha256(passphrase);
+      
+      // 1. Submit setupRecovery transaction on-chain
+      toast.loading('Registering setup on-chain...', { id: toastId });
+      const txHash = await writeContractAsync({
+        address: CONTRACTS.IDENTITY_REGISTRY as `0x${string}`,
+        abi: [
+          {
+            "inputs": [
+              {
+                "internalType": "address[]",
+                "name": "_guardians",
+                "type": "address[]"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "_passphraseHash",
+                "type": "bytes32"
+              }
+            ],
+            "name": "setupRecovery",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          }
+        ] as const,
+        functionName: 'setupRecovery',
+        args: [
+          guardians.map(g => g as `0x${string}`),
+          `0x${hash}` as `0x${string}`
+        ],
+        account: activeAddress as `0x${string}`,
+        chain: hardhat,
+      });
+
+      // 2. Post to backend to sync
+      toast.loading('Syncing setup with database...', { id: toastId });
       const backend = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8001';
       
       const res = await fetch(`${backend}/api/recovery/setup`, {
@@ -98,8 +139,8 @@ export default function RecoveryPage() {
         })
       });
 
-      if (!res.ok) throw new Error('Registration failed');
-      toast.success('Recovery network configured successfully!', { id: toastId });
+      if (!res.ok) throw new Error('Database sync failed');
+      toast.success('Recovery network configured successfully on-chain and synced!', { id: toastId });
       setPassphrase('');
     } catch (e: any) {
       toast.error(e.message || 'Setup failed', { id: toastId });
@@ -320,7 +361,7 @@ export default function RecoveryPage() {
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-[8px] font-mono text-zinc-450 uppercase">Original DID to Recover</span>
-                    <NeonInput value={recoveryDid} onChange={e => setRecoveryDid(e.target.value)} placeholder="did:metago:0x..." />
+                    <NeonInput value={recoveryDid} onChange={e => setRecoveryDid(e.target.value)} placeholder="did:metago:..." />
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-[8px] font-mono text-zinc-450 uppercase">New Wallet Address (To Migrate to)</span>

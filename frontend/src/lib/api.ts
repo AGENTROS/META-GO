@@ -1,19 +1,193 @@
-// Backend BFF URL helper - all /api/* calls go to FastAPI on port 8001 via platform routing.
-export const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+import { getJWTToken, setJWTToken } from './tokenManager';
 
-export async function apiCall(path: string, opts: RequestInit = {}) {
-  const url = path.startsWith('http') ? path : (API_URL || '') + path;
-  const res = await fetch(url, {
-    ...opts,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(opts.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API ${path} failed: ${res.status} ${text}`);
+const isServer = typeof window === 'undefined';
+export const BACKEND_URL = isServer 
+  ? (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8001')
+  : '/api/proxy';
+
+// Cache structure: key -> { data, timestamp }
+const requestCache = new Map<string, { data: any; timestamp: number }>();
+// In-flight requests: key -> Promise
+const inFlightRequests = new Map<string, Promise<any>>();
+
+let isRefreshing = false;
+type TokenRefreshHandler = (token: string | null) => void;
+let refreshSubscribers: TokenRefreshHandler[] = [];
+
+function subscribeTokenRefresh(cb: TokenRefreshHandler) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(token: string | null) {
+  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers = [];
+}
+
+interface FetchOptions extends RequestInit {
+  timeout?: number;
+  retries?: number;
+  retryDelay?: number;
+  skipCache?: boolean;
+}
+
+async function refreshToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      setJWTToken(null);
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth';
+      }
+      return null;
+    }
+
+    const data = await res.json();
+    if (data?.token) {
+      setJWTToken(data.token);
+      return data.token;
+    }
+    return null;
+  } catch (err) {
+    console.error('Token refresh failed:', err);
+    return null;
   }
-  return res.json();
+}
+
+export async function authenticatedFetch(path: string, opts: FetchOptions = {}): Promise<Response> {
+  const isInternalNextAuth = path.startsWith('/api/auth/');
+  const url = path.startsWith('http') || isInternalNextAuth ? path : `${BACKEND_URL}${path}`;
+  const headers = new Headers(opts.headers || {});
+  
+  // Local Dev Bypass: Use DID Session instead of JWT
+  // In production, we will revert to JWT + OAuth
+  const storedState = typeof window !== 'undefined' ? localStorage.getItem('metago-identity-store') : null;
+  let did = null;
+  if (storedState) {
+    try {
+      const parsed = JSON.parse(storedState);
+      did = parsed?.state?.did || null;
+    } catch (e) {}
+  }
+
+  if (did && !headers.has('X-MetaGo-DID')) {
+    headers.set('X-MetaGo-DID', did);
+  }
+
+  // Inject JWT token for backend auth
+  const token = getJWTToken();
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const timeout = opts.timeout ?? 10000;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort('Backend request timeout'), timeout);
+
+  let attempt = 0;
+  const maxRetries = opts.retries ?? 2;
+  const delay = opts.retryDelay ?? 1000;
+
+  const executeFetch = async (): Promise<Response> => {
+    try {
+      const response = await fetch(url, {
+        ...opts,
+        credentials: 'include',
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+
+      if (response.status === 401) {
+        console.warn('401 Unauthorized ignored in local DID session mode.');
+      }
+
+      return response;
+    } catch (error: any) {
+      // Silently handle abort/timeout errors - backend is just not available
+      if (error?.name === 'AbortError' || controller.signal.aborted) {
+        clearTimeout(id);
+        return new Response(JSON.stringify({ error: 'Backend unavailable' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (attempt < maxRetries && !controller.signal.aborted) {
+        attempt++;
+        await new Promise(r => setTimeout(r, delay * Math.pow(2, attempt)));
+        return executeFetch();
+      }
+      clearTimeout(id);
+      console.warn('Backend fetch failed, returning 503 fallback response', error);
+      return new Response(JSON.stringify({ error: 'Backend unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  };
+
+  return executeFetch();
+}
+
+export async function apiCall(path: string, opts: FetchOptions = {}): Promise<any> {
+  const cacheKey = `${opts.method || 'GET'}:${path}`;
+  const isGet = !opts.method || opts.method.toUpperCase() === 'GET';
+
+  if (isGet && !opts.skipCache) {
+    const cached = requestCache.get(cacheKey);
+    const inFlight = inFlightRequests.get(cacheKey);
+
+    if (inFlight) {
+      return inFlight;
+    }
+
+    if (cached) {
+      const age = Date.now() - cached.timestamp;
+      const isStale = age > 10000;
+
+      if (isStale) {
+        (async () => {
+          try {
+            const res = await authenticatedFetch(path, opts);
+            if (res.ok) {
+              const freshData = await res.json();
+              requestCache.set(cacheKey, { data: freshData, timestamp: Date.now() });
+            }
+          } catch (e) {
+            console.warn(`Background revalidation failed for ${path}:`, e);
+          }
+        })();
+      }
+
+      return cached.data;
+    }
+  }
+
+  const promise = (async () => {
+    const res = await authenticatedFetch(path, opts);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`API ${path} failed: ${res.status} ${text}`);
+    }
+    const data = await res.json();
+    if (isGet) {
+      requestCache.set(cacheKey, { data, timestamp: Date.now() });
+    }
+    return data;
+  })();
+
+  if (isGet) {
+    inFlightRequests.set(cacheKey, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  }
+
+  return promise;
 }

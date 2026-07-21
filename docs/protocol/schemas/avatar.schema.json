@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MetaGoAvatarPayload",
+  "description": "Payload schema for visual avatar updates.",
+  "type": "object",
+  "properties": {
+    "user_id": { "type": "string" },
+    "vrm_uri": { "type": "string", "pattern": "^ipfs://.*$" }
+  },
+  "required": ["user_id", "vrm_uri"]
+}

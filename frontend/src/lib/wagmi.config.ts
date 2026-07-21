@@ -1,6 +1,6 @@
 import { createConfig, http } from 'wagmi';
 import { polygon, polygonAmoy, hardhat, mainnet } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { metaMask, injected, coinbaseWallet } from 'wagmi/connectors';
 
 export const SUPPORTED_CHAINS = [polygonAmoy, polygon, hardhat, mainnet] as const;
 export const SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map(c => c.id);
@@ -8,7 +8,10 @@ export const SUPPORTED_CHAIN_IDS = SUPPORTED_CHAINS.map(c => c.id);
 export const wagmiConfig = createConfig({
   chains: [polygonAmoy, polygon, hardhat, mainnet],
   connectors: [
-    injected({ shimDisconnect: true }),
+    metaMask(),
+    coinbaseWallet({ appName: 'Meta Go' }),
+    injected({ target: 'phantom' }),
+    injected(), // catches other injected browser wallets
   ],
   transports: {
     [polygonAmoy.id]: http('https://rpc-amoy.polygon.technology'),

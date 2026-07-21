@@ -1,0 +1,8 @@
+{
+  "name": "com.metago.sdk",
+  "version": "1.0.0",
+  "displayName": "MetaGo Unity SDK",
+  "description": "Official MetaGo Universal Protocol SDK for Unity. Provides native WebSockets for Identity and Presence synchronization.",
+  "unity": "2021.3",
+  "dependencies": {}
+}

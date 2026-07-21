@@ -2,11 +2,13 @@
   "network": "localhost",
   "chainId": 31337,
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "deployedAt": "2026-06-02T19:51:26.348Z",
+  "deployedAt": "2026-07-05T21:08:23.250Z",
   "contracts": {
-    "Groth16Verifier": "0x851356ae760d987E095750cCeb3bC6014560891C",
-    "IdentityRegistry": "0xf5059a5D33d5853360D16C683c16e67980206f36",
-    "CelestialSBT": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
-    "CredentialVault": "0x998abeb3E57409262aE5b751f60747921B33613E"
+    "Groth16Verifier": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "IdentityRegistry": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "SecondaryRegistryBase": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "SecondaryRegistryArbitrum": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "CelestialSBT": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    "CredentialVault": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
   }
 }

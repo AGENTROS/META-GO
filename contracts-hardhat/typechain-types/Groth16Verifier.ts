@@ -84,10 +84,10 @@ export interface Groth16Verifier extends BaseContract {
 
   verifyProof: TypedContractMethod<
     [
-      _a: [BigNumberish, BigNumberish],
-      _b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]],
-      _c: [BigNumberish, BigNumberish],
-      _input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
+      _pA: [BigNumberish, BigNumberish],
+      _pB: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]],
+      _pC: [BigNumberish, BigNumberish],
+      _pubSignals: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
     ],
     [boolean],
     "view"
@@ -101,10 +101,10 @@ export interface Groth16Verifier extends BaseContract {
     nameOrSignature: "verifyProof"
   ): TypedContractMethod<
     [
-      _a: [BigNumberish, BigNumberish],
-      _b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]],
-      _c: [BigNumberish, BigNumberish],
-      _input: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
+      _pA: [BigNumberish, BigNumberish],
+      _pB: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]],
+      _pC: [BigNumberish, BigNumberish],
+      _pubSignals: [BigNumberish, BigNumberish, BigNumberish, BigNumberish]
     ],
     [boolean],
     "view"

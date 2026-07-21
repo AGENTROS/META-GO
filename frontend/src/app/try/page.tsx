@@ -18,10 +18,16 @@ export default function TryPage() {
   const [stats, setStats] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [lastForge, setLastForge] = useState<any>(null);
+  const [origin, setOrigin] = useState('https://soulbound-identity.preview.emergentagent.com');
 
   useEffect(() => {
     const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     fetch(`${backend}/api/demo/stats`).then(r => r.json()).then(setStats).catch(() => {});
+    
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+
     // load the embed script for live demo
     if (!document.getElementById('metago-embed-script')) {
       const s = document.createElement('script');
@@ -37,7 +43,7 @@ export default function TryPage() {
     };
   }, []);
 
-  const snippet = `<script src="${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://soulbound-identity.preview.emergentagent.com'}/metago-embed.js" defer></script>
+  const snippet = `<script src="${origin}/metago-embed.js" defer></script>
 <div data-metago-embed="signin"></div>`;
 
   function copy() {

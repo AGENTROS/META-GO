@@ -14,7 +14,14 @@
   if (window.__metago_embed_loaded) return;
   window.__metago_embed_loaded = true;
 
+  var script = document.currentScript;
   var ORIGIN = 'https://soulbound-identity.preview.emergentagent.com';
+  if (script && script.src) {
+    try {
+      var u = new URL(script.src, location.href);
+      ORIGIN = u.origin;
+    } catch (e) {}
+  }
 
   function track(payload) {
     try {

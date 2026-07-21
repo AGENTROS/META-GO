@@ -38,67 +38,132 @@ export function addressToSecret(addr: string): bigint {
 }
 
 export async function generateZKProof(landmarks: number[][] | null, walletAddress: string): Promise<ZKProofResult> {
-  const biometricHash = landmarksToHash(landmarks);
-  const walletSecret = addressToSecret(walletAddress);
-  const ts = BigInt(Math.floor(Date.now() / 1000));
-  const commitment = poseidonSimHash([biometricHash, walletSecret]);
-  const nullifier = poseidonSimHash([biometricHash, walletSecret, ts]);
-
-  // Attempt real snarkjs Groth16. If circuit files absent or any failure, fall back.
   let real = false;
   let proof: any = null;
   let publicSignals: any = null;
 
+  let biometricHashVal = landmarksToHash(landmarks);
+  let walletSecretVal = addressToSecret(walletAddress);
+  let tsVal = BigInt(Math.floor(Date.now() / 1000));
+  let commitmentVal = poseidonSimHash([biometricHashVal, walletSecretVal]);
+  let nullifierVal = poseidonSimHash([biometricHashVal, walletSecretVal, tsVal]);
+
   try {
+    const circomlibjs = await import('circomlibjs');
+    const poseidonBuilder = await circomlibjs.buildPoseidon();
+    
+    // Compute real cryptographic values
+    const realBiometricHash = await landmarksToRealHash(landmarks);
+    const realWalletSecret = walletSecretVal;
+    const realTs = tsVal;
+    
+    // Real Poseidon commitments
+    const cHash = poseidonBuilder([realBiometricHash, realWalletSecret]);
+    const realCommitment = BigInt(poseidonBuilder.F.toString(cHash));
+    
+    const nHash = poseidonBuilder([realBiometricHash, realWalletSecret, realTs]);
+    const realNullifier = BigInt(poseidonBuilder.F.toString(nHash));
+
+    // Time window bounds (timestamp must fall between minTimestamp and maxTimestamp)
+    const minTimestamp = realTs - BigInt(3600); // 1 hour window
+    const maxTimestamp = realTs + BigInt(3600);
+
+    const isTestMode = process.env.NEXT_PUBLIC_TEST_MODE === '1';
     const snarkjs: any = await Promise.race([
       // @ts-ignore
       import('snarkjs').catch(() => null),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500)),
     ]);
-    if (snarkjs) {
+
+    if (!isTestMode && (!snarkjs || !snarkjs.groth16)) {
+      throw new Error('SnarkJS library failed to load or initialize in production mode.');
+    }
+
+    if (snarkjs && snarkjs.groth16) {
       const input = {
-        biometricHash: biometricHash.toString(),
-        walletSecret: walletSecret.toString(),
-        timestamp: ts.toString(),
-        commitment: commitment.toString(),
-        nullifier: nullifier.toString(),
+        biometricHash: realBiometricHash.toString(),
+        walletSecret: realWalletSecret.toString(),
+        timestamp: realTs.toString(),
+        commitment: realCommitment.toString(),
+        nullifier: realNullifier.toString(),
+        minTimestamp: minTimestamp.toString(),
+        maxTimestamp: maxTimestamp.toString(),
       };
+      
       const res = await Promise.race([
         snarkjs.groth16.fullProve(input, '/circuits/identity.wasm', '/circuits/identity_0001.zkey'),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000)),
       ]);
+
+      if (!isTestMode && (!res || !(res as any).proof)) {
+        throw new Error('Failed to generate real ZK SnarkJS proof parameters.');
+      }
+      
       proof = (res as any).proof;
       publicSignals = (res as any).publicSignals;
       real = true;
+      biometricHashVal = realBiometricHash;
+      commitmentVal = realCommitment;
+      nullifierVal = realNullifier;
     }
-  } catch {
+  } catch (err) {
+    console.warn('Real ZK proof generation failed, falling back to simulated proof:', err);
     real = false;
+    const isTestMode = process.env.NEXT_PUBLIC_TEST_MODE === '1';
+    if (!isTestMode) {
+      throw new Error(`ZK proof generation failed: SnarkJS proving error. Details: ${err}`);
+    }
   }
 
   if (!real) {
     // Simulation proof - deterministic, browser-only, no on-chain validity.
     proof = {
-      pi_a: [commitment.toString(), nullifier.toString(), '1'],
-      pi_b: [[commitment.toString(), nullifier.toString()], [biometricHash.toString(), walletSecret.toString()], ['1', '0']],
-      pi_c: [walletSecret.toString(), biometricHash.toString(), '1'],
-      protocol: 'groth16',
+      pi_a: [commitmentVal.toString(), nullifierVal.toString(), '1'],
+      pi_b: [[commitmentVal.toString(), nullifierVal.toString()], [biometricHashVal.toString(), walletSecretVal.toString()], ['1', '0']],
+      pi_c: [walletSecretVal.toString(), biometricHashVal.toString(), '1'],
+      protocol: 'simulation',
       curve: 'bn128',
     };
-    publicSignals = [commitment.toString(), nullifier.toString(), '1', ts.toString()];
+    publicSignals = [commitmentVal.toString(), nullifierVal.toString(), '1', tsVal.toString()];
   }
 
-  const hashShort = commitment.toString(16).padStart(64, '0').slice(0, 60);
+  const hashShort = commitmentVal.toString(16).padStart(64, '0').slice(0, 60);
   const proofHash = real ? `ZK-SNARK-0x${hashShort}` : `SIM-SNARK-${hashShort}`;
 
   return {
     proofHash,
     proof,
     publicSignals,
-    nullifier: nullifier.toString(),
+    nullifier: nullifierVal.toString(),
     algorithm: real ? 'groth16-bn128' : 'simulation-bn128',
     isReal: real,
     integrityScore: real ? 100 : 85,
     generatedAt: Date.now(),
     expiresAt: Date.now() + 30 * 24 * 3600 * 1000,
   };
+}
+
+async function landmarksToRealHash(landmarks: number[][] | null): Promise<bigint> {
+  if (!landmarks || landmarks.length === 0) {
+    return BigInt(123456789);
+  }
+  const flat: number[] = [];
+  for (const p of landmarks) flat.push(...p);
+  
+  // We hash the coordinates using SHA-256 to map arbitrary length to a single BN128 scalar
+  const encoder = new TextEncoder();
+  const data = encoder.encode(flat.join(','));
+  let hashBuffer;
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+    hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+  } else {
+    // Node fallback for tests / SSR
+    const crypto = require('crypto');
+    hashBuffer = crypto.createHash('sha256').update(flat.join(',')).digest();
+  }
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const bn = BigInt('0x' + hex);
+  const r = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+  return bn % r;
 }

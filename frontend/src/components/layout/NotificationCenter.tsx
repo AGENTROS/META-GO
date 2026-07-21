@@ -3,6 +3,8 @@ import { useIdentityStore } from '@/store/useIdentityStore';
 import { X, CheckCircle2, AlertTriangle, Shield, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 
+import { useShallow } from 'zustand/shallow';
+
 const ICONS: Record<string, any> = {
   SBT_ISSUED: CheckCircle2,
   THREAT_DETECTED: AlertTriangle,
@@ -20,7 +22,11 @@ const COLORS: Record<string, string> = {
 };
 
 export function NotificationCenter({ onClose }: { onClose: () => void }) {
-  const { notifications, markAllRead, clearNotifications } = useIdentityStore();
+  const { notifications, markAllRead, clearNotifications } = useIdentityStore(useShallow(s => ({
+    notifications: s.notifications,
+    markAllRead: s.markAllRead,
+    clearNotifications: s.clearNotifications
+  })));
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />

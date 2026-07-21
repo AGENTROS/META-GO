@@ -1,15 +1,44 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { WalletConnector } from '@/components/auth/WalletConnector';
-import { BiometricScanner } from '@/components/auth/BiometricScanner';
+import dynamic from 'next/dynamic';
+const BiometricScanner = dynamic(
+  () => import('@/components/auth/BiometricScanner').then(mod => mod.BiometricScanner),
+  { ssr: false }
+);
 import { ZKPForge } from '@/components/auth/ZKPForge';
 import { NeonButton } from '@/components/ui/NeonButton';
 import { NeonInput } from '@/components/ui/NeonInput';
 import { checkHandleAvailability } from '@/lib/bloomFilter';
 import { CheckCircle2, Fingerprint, XCircle } from 'lucide-react';
 import { useIdentityStore } from '@/store/useIdentityStore';
+
+function generateSecureNonce(): string {
+  if (typeof window !== 'undefined' && window.crypto) {
+    const array = new Uint8Array(16);
+    window.crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  return Math.random().toString(36).substring(2, 15);
+}
+
+function parseJWT(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
 
 export default function EmbedPage() {
   const router = useRouter();
@@ -22,6 +51,67 @@ export default function EmbedPage() {
   const [faceLandmarks, setFaceLandmarks] = useState<number[][] | null>(null);
   const [proofHash, setProofHash] = useState('');
   const [done, setDone] = useState(false);
+  const [operationId] = useState(() => 'op-' + generateSecureNonce());
+
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [validatedParentOrigin, setValidatedParentOrigin] = useState<string | null>(null);
+  const activeNonceRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (window.parent && window.parent !== window) {
+      let parentOrigin = '';
+      if (typeof document !== 'undefined' && document.referrer) {
+        try {
+          parentOrigin = new URL(document.referrer).origin;
+        } catch (e) {}
+      }
+
+      const rawOrigins = process.env.NEXT_PUBLIC_APPROVED_EMBED_ORIGINS || '';
+      const APPROVED_ORIGINS = rawOrigins.split(',').map(o => o.trim()).filter(Boolean);
+      const isAllowed = parentOrigin && (APPROVED_ORIGINS.includes(parentOrigin) || parentOrigin === window.location.origin);
+
+      if (!isAllowed) {
+        setAuthError("Authentication Error: Parent origin is unauthorized or unvalidated.");
+        return;
+      }
+
+      setValidatedParentOrigin(parentOrigin);
+
+      const handshakeNonce = generateSecureNonce();
+      activeNonceRef.current = handshakeNonce;
+
+      const expirationTimeout = setTimeout(() => {
+        if (activeNonceRef.current === handshakeNonce) {
+          activeNonceRef.current = null;
+          setAuthError("Authentication Error: Handshake timed out.");
+        }
+      }, 10000);
+
+      const handleTokenDelivery = (event: MessageEvent) => {
+        if (event.origin !== parentOrigin) return;
+        const msg = event.data;
+        if (msg && msg.type === 'metago:token') {
+          if (msg.nonce !== handshakeNonce) {
+            setAuthError("Authentication Error: Nonce mismatch.");
+            return;
+          }
+          if (msg.token) {
+            const parsed = parseJWT(msg.token);
+            if (!parsed || !parsed.exp || parsed.exp < Date.now() / 1000) {
+              setAuthError("Authentication Error: Expired token.");
+              return;
+            }
+            setJwtToken(msg.token);
+          }
+          clearTimeout(expirationTimeout);
+          window.removeEventListener('message', handleTokenDelivery);
+        }
+      };
+      window.addEventListener('message', handleTokenDelivery);
+      window.parent.postMessage({ type: 'metago:request-token', nonce: handshakeNonce }, parentOrigin);
+    }
+  }, []);
 
   async function checkHandle(val: string) {
     setHandle(val);
@@ -36,14 +126,23 @@ export default function EmbedPage() {
     const did = `did:metago:${address?.toLowerCase()}`;
     store.setHandle(handle);
     store.setDID(did, `did:metago:polygon:${address?.toLowerCase()}`);
-    store.hydrateMockData();
+    if (process.env.NEXT_PUBLIC_TEST_MODE === '1') {
+      store.hydrateMockData();
+    }
+
     // Sync with backend (best effort) and trigger real on-chain mint
     const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+    const syncHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (jwtToken) {
+      syncHeaders['Authorization'] = `Bearer ${jwtToken}`;
+    }
+
     fetch(`${backend}/api/user/sync`, {
       method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: syncHeaders,
       body: JSON.stringify({
         handle, walletAddress: address, did,
+        operationId,
         zkProof: {
           proofHash: hash,
           nullifier: realProof?.nullifier || `nul-${Date.now()}`,
@@ -57,14 +156,46 @@ export default function EmbedPage() {
     }).catch(() => {});
 
     setDone(true);
-    // Post message to parent
+    // Post message to parent with validated target origin
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({
-        type: 'metago:identity-forged',
-        did, handle, proofHash: hash,
-        durationMs: Date.now() - startedAt,
-      }, '*');
+      let targetOrigin = validatedParentOrigin;
+      if (!targetOrigin && typeof window !== 'undefined') {
+        let parentOrigin = '';
+        if (typeof document !== 'undefined' && document.referrer) {
+          try {
+            parentOrigin = new URL(document.referrer).origin;
+          } catch (e) {}
+        }
+        const rawOrigins = process.env.NEXT_PUBLIC_APPROVED_EMBED_ORIGINS || '';
+        const APPROVED_ORIGINS = rawOrigins.split(',').map(o => o.trim()).filter(Boolean);
+        const isAllowed = parentOrigin && (APPROVED_ORIGINS.includes(parentOrigin) || parentOrigin === window.location.origin);
+        if (isAllowed) {
+          targetOrigin = parentOrigin;
+        }
+      }
+      
+      if (targetOrigin) {
+        window.parent.postMessage({
+          type: 'metago:identity-forged',
+          did, handle, proofHash: hash,
+          durationMs: Date.now() - startedAt,
+        }, targetOrigin);
+      } else {
+        console.error("Could not post message: parent origin is not validated.");
+      }
     }
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full border border-red-500/20 bg-red-950/10 p-6 rounded-xl space-y-4">
+          <XCircle className="text-red-500 mx-auto w-12 h-12" />
+          <h2 className="text-lg font-bold text-red-400">Authentication Error</h2>
+          <p className="text-xs text-zinc-400">{authError}</p>
+        </div>
+      </div>
+    );
   }
 
   return (

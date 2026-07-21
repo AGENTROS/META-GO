@@ -3,6 +3,9 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useState } from 'react';
 import { SiweMessage } from 'siwe';
 
+import { setJWTToken } from '@/lib/tokenManager';
+import { BACKEND_URL, authenticatedFetch } from '@/lib/api';
+
 export function useSIWE() {
   const { address, chainId } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -12,15 +15,15 @@ export function useSIWE() {
     if (!address || !chainId) throw new Error('Wallet not connected');
     setIsLoading(true);
     try {
-      const backend = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-      const nonceRes = await fetch(`${backend}/api/auth/nonce`, { credentials: 'include' });
-      if (!nonceRes.ok) throw new Error('Failed to fetch nonce');
+      // Fetch real nonce from backend
+      const nonceRes = await fetch(`${BACKEND_URL}/api/auth/nonce`);
+      if (!nonceRes.ok) throw new Error('Failed to fetch nonce from backend');
       const { nonce } = await nonceRes.json();
 
       const message = new SiweMessage({
         domain: window.location.host,
         address,
-        statement: 'Sign in to Meta Go — Sovereign Identity Protocol',
+        statement: 'Sign in to Meta Go - Sovereign Identity Protocol (Local Demo)',
         uri: window.location.origin,
         version: '1',
         chainId,
@@ -31,14 +34,22 @@ export function useSIWE() {
       const prepared = message.prepareMessage();
       const signature = await signMessageAsync({ account: address, message: prepared });
 
-      const verifyRes = await fetch(`${backend}/api/auth/verify`, {
+      // Verify with backend
+      const verifyRes = await fetch(`${BACKEND_URL}/api/auth/verify`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prepared, signature }),
+        body: JSON.stringify({ message: prepared, signature })
       });
-      if (!verifyRes.ok) throw new Error('SIWE verification failed');
+      
+      if (!verifyRes.ok) {
+        throw new Error('Failed to verify signature with backend');
+      }
+
       const data = await verifyRes.json();
+      
+      if (data.token) {
+        setJWTToken(data.token);
+      }
       return data;
     } finally {
       setIsLoading(false);
@@ -47,3 +58,5 @@ export function useSIWE() {
 
   return { signIn, isLoading };
 }
+
+

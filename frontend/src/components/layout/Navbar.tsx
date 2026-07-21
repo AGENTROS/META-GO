@@ -1,48 +1,89 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAccount, useDisconnect } from 'wagmi';
 import { Bell, Menu, ChevronDown, Shield, Settings, LogOut, User, BarChart3 } from 'lucide-react';
 import { useIdentityStore } from '@/store/useIdentityStore';
+import { getJWTToken } from '@/lib/tokenManager';
 import toast from 'react-hot-toast';
 import { NotificationCenter } from './NotificationCenter';
 import { MobileNav } from './MobileNav';
 import { clsx } from 'clsx';
+
+import { useShallow } from 'zustand/shallow';
+
+function LogoMark({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none"
+      style={{ filter: 'drop-shadow(0 0 6px rgba(107,91,255,0.6))' }}>
+      <defs>
+        <linearGradient id="lgoG" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#4f7bff" />
+          <stop offset="55%" stopColor="#8f6bff" />
+          <stop offset="100%" stopColor="#c56bff" />
+        </linearGradient>
+      </defs>
+      <circle cx="16" cy="16" r="11" fill="url(#lgoG)" />
+      <g stroke="#0b0d18" strokeWidth="0.9" opacity="0.55" fill="none">
+        <ellipse cx="16" cy="16" rx="11" ry="4.2" />
+        <ellipse cx="16" cy="16" rx="4.2" ry="11" />
+        <path d="M6.2 11.2c4 2.6 15.6 2.6 19.6 0M6.2 20.8c4-2.6 15.6-2.6 19.6 0" />
+      </g>
+      <ellipse cx="16" cy="17" rx="15" ry="5" transform="rotate(-16 16 17)"
+        stroke="#dfe6ff" strokeWidth="1.1" fill="none" opacity="0.9" />
+    </svg>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const { handle, unreadCount, logout } = useIdentityStore();
+  const { handle, unreadCount, logout, isAuthenticated } = useIdentityStore(useShallow(s => ({
+    handle: s.handle,
+    unreadCount: s.unreadCount,
+    logout: s.logout,
+    isAuthenticated: s.isAuthenticated
+  })));
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
-  const isAdmin = typeof document !== 'undefined' && document.cookie.includes('celestial_admin');
+  const isAdmin = mounted && typeof document !== 'undefined' && document.cookie.includes('celestial_admin');
 
   useEffect(() => {
     setMounted(true);
+    if (isAuthenticated && !getJWTToken()) {
+      logout();
+    }
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setAvatarOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  }, [isAuthenticated, logout]);
+
+  useEffect(() => {
+    setAvatarOpen(false);
+    setNotifsOpen(false);
+    setMobileOpen(false);
+  }, [pathname]);
 
   function handleLogout() {
-    disconnect();
     logout();
     toast.success('Session ended');
     router.push('/');
   }
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null;
+  const isUserAuthenticated = mounted && isConnected && shortAddress && isAuthenticated && !!getJWTToken();
 
-    const navLinks = (mounted && isConnected && shortAddress) ? [
+    const navLinks = isUserAuthenticated ? [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/sbt-gallery', label: 'Credentials' },
     { href: '/vault', label: 'Vault' },
@@ -54,25 +95,23 @@ export function Navbar() {
     { href: '/#demo', label: 'Demo' },
     { href: '/docs', label: 'Docs' },
   ];
-
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md" data-testid="primary-navbar">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <nav className="fixed top-4 left-4 right-4 z-50 rounded-2xl border border-white/8 bg-[#0a0a0c]/60 backdrop-blur-[20px] shadow-[0_8px_32px_0_rgba(0,0,0,0.5)]" data-testid="primary-navbar">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2" data-testid="brand-link">
-            <div className="w-8 h-8 rounded-full bg-blue-600/10 border border-blue-600/30 flex items-center justify-center">
-              <span className="text-blue-600 text-xs font-sans font-bold">M</span>
-            </div>
-            <span className="font-sans text-sm font-bold text-zinc-900 dark:text-white hidden sm:block tracking-tight">
-              Meta<span className="text-blue-600"> Go</span>
+            <LogoMark size={24} />
+            <span className="font-sans text-[13px] font-bold text-white tracking-tight">
+              Meta <span className="text-blue-500">Go</span>
             </span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
             {navLinks.map(link => (
               <Link key={link.href} href={link.href} data-testid={`nav-${link.label.toLowerCase()}`}
-                className={clsx('text-xs font-semibold tracking-wide uppercase transition-colors',
-                  pathname === link.href ? 'text-blue-600' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
+                onMouseEnter={() => router.prefetch(link.href)}
+                className={clsx('text-[10px] font-semibold tracking-wider uppercase transition-colors',
+                  pathname === link.href ? 'text-blue-500' : 'text-zinc-400 hover:text-white'
                 )}>
                 {link.label}
               </Link>
@@ -81,27 +120,27 @@ export function Navbar() {
 
           <div className="flex items-center gap-3">
             <button onClick={() => setNotifsOpen(!notifsOpen)}
-              className="relative p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+              className="relative p-2 text-zinc-400 hover:text-white transition-colors"
               aria-label={`Notifications (${unreadCount} unread)`}
               data-testid="notifications-toggle-btn">
-              <Bell size={18} />
+              <Bell size={16} />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full text-[10px] font-sans text-white flex items-center justify-center">
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-blue-500 rounded-full text-[9px] font-sans text-white flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
 
-            {mounted && isConnected && shortAddress ? (
+            {isUserAuthenticated ? (
               <div className="relative" ref={dropdownRef}>
                 <button onClick={() => setAvatarOpen(!avatarOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-xl border border-white/8 bg-zinc-950/40 hover:bg-zinc-900/60 transition-all"
                   aria-label="Account menu" data-testid="account-menu-btn">
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500" />
-                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 hidden sm:block">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500" />
+                  <span className="text-[10px] font-semibold text-zinc-300 hidden sm:block">
                     {handle ? `@${handle}` : shortAddress}
                   </span>
-                  <ChevronDown size={12} className="text-zinc-400" />
+                  <ChevronDown size={10} className="text-zinc-400" />
                 </button>
 
                 {avatarOpen && (
@@ -115,7 +154,9 @@ export function Navbar() {
                       { icon: Shield, label: 'Security Center', href: '/security' },
                       ...(isAdmin ? [{ icon: BarChart3, label: 'Admin Panel', href: '/admin' }] : []),
                     ].map(item => (
-                      <Link key={item.href} href={item.href} onClick={() => setAvatarOpen(false)} data-testid={`menu-${item.label.toLowerCase().replace(' ', '-')}`}
+                      <Link key={item.href} href={item.href} onClick={() => setTimeout(() => setAvatarOpen(false), 0)}
+                        onMouseEnter={() => router.prefetch(item.href)}
+                        data-testid={`menu-${item.label.toLowerCase().replace(' ', '-')}`}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:text-blue-600 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                         <item.icon size={14} />{item.label}
                       </Link>

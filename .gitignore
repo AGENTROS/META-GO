@@ -1,3 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Node
+node_modules/
+/.next
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test / CI
+.pytest_cache/
+coverage/
+coverage.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Build artifacts
+/contracts-hardhat/artifacts/
+/contracts-hardhat/cache/
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # IDE and editors
@@ -88,3 +121,19 @@ frontend/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
 credentials.json
 *.key
 .credentials
+
+# Local build artifacts and temporary files
+chrome-temp-profile/
+contracts-hardhat/artifacts/
+contracts-hardhat/circuits/build/
+contracts-hardhat/typechain-types/
+demo_avatar.gltf
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+reports/
+test_reports/
+CSE PAPER/
+
+
+.env
+.env.*

@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "C:\Users\lenovo\OneDrive\Desktop\META GO\backend\server.py", line 2204, in biometrics_verify_pipeline
+    asyncio.create_task(db.users.update_one(
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+        {"walletAddress": addr},
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+        {"$set": {"voiceprint": current_emb}}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ))
+    ^^
+  File "c:\python314\Lib\asyncio\tasks.py", line 395, in create_task
+    return loop.create_task(coro, **kwargs)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "c:\python314\Lib\asyncio\base_events.py", line 470, in create_task
+    task = tasks.Task(coro, loop=self, **kwargs)
+TypeError: a coroutine was expected, got <Future pending cb=[_chain_future.<locals>._call_check_cancel() at c:\python314\Lib\asyncio\futures.py:393]>
