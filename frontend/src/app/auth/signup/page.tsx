@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { WalletConnector } from '@/components/auth/WalletConnector';
 import dynamic from 'next/dynamic';
