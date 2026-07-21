@@ -1,8 +1,14 @@
 {
   "main": "dist/index.js",
   "runtimeVersion": "7",
+  "display": {
+    "title": "MetaGo Decentraland Integration",
+    "favicon": "favicon.ico"
+  },
   "scene": {
-    "parcels": ["0,0"],
+    "parcels": [
+      "0,0"
+    ],
     "base": "0,0"
   },
   "spawnPoints": [
@@ -10,15 +16,16 @@
       "name": "spawn1",
       "default": true,
       "position": {
-        "x": [1, 15],
-        "y": [1, 15],
-        "z": [1, 15]
+        "x": 8,
+        "y": 0,
+        "z": 8
       },
       "cameraTarget": {
         "x": 8,
         "y": 1,
         "z": 8
       }
+    
     }
   ]
 }

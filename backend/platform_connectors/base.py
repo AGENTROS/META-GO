@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 class PlatformConnector:
     async def initialize(self) -> None:
@@ -12,4 +12,6 @@ class PlatformConnector:
     async def disconnect(self) -> None:
         pass
     async def shutdown(self) -> None:
+        pass
+    async def sync_presence(self, payload) -> None:
         pass

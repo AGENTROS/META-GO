@@ -41,7 +41,10 @@ async def test_unity_connector_contract():
     assert not auth_success
     
     # Test authentication success
-    auth_success = await connector.authenticate({"token": "mock_valid_token"})
+    import jwt
+    from config import cfg
+    valid_token = jwt.encode({"walletAddress": "0x123"}, cfg.JWT_SECRET or "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026", algorithm="HS256")
+    auth_success = await connector.authenticate({"token": valid_token})
     assert auth_success
     
     # Sync presence should not throw errors

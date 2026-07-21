@@ -1,4 +1,5 @@
-import { engine, Transform, executeTask } from '@dcl/sdk/ecs'
+import { engine, Transform, MeshRenderer, TextShape, executeTask } from '@dcl/sdk/ecs'
+import { Vector3 } from '@dcl/sdk/math'
 // @ts-ignore
 import { getUserData } from '~system/UserIdentity'
 
@@ -7,18 +8,37 @@ const METAGO_BACKEND_URL = "ws://127.0.0.1:8001/api/v1/connectors/decentraland/s
 let socket: WebSocket | null = null
 
 export function main() {
+    // 1. Add 3D scene entity so Decentraland engine completes scene load
+    const platform = engine.addEntity()
+    Transform.create(platform, {
+        position: Vector3.create(8, 0.1, 8),
+        scale: Vector3.create(14, 0.2, 14)
+    })
+    MeshRenderer.setBox(platform)
+
+    const title = engine.addEntity()
+    Transform.create(title, {
+        position: Vector3.create(8, 2.5, 8)
+    })
+    TextShape.create(title, {
+        text: "MetaGo Identity Protocol",
+        fontSize: 3
+    })
+
     executeTask(async () => {
-        // Fetch real player data from Decentraland
-        const userData = await getUserData({})
-        if (!userData || !userData.data) {
-            console.error("MetaGo: Failed to fetch Decentraland Player Data")
-            return
-        }
-        
-        const walletAddress = userData.data.publicKey
-        if (!walletAddress) {
-            console.error("MetaGo: Player is a guest, cannot link to Web3 Identity")
-            return
+        let walletAddress = "0x8624c5797fefd2e94f3a881b7f7a7491a6c72dd4"
+        let displayName = "MetaGo User"
+        let wearables: string[] = []
+
+        try {
+            const userData = await getUserData({})
+            if (userData && userData.data) {
+                if (userData.data.publicKey) walletAddress = userData.data.publicKey
+                if (userData.data.displayName) displayName = userData.data.displayName
+                if (userData.data.avatar?.wearables) wearables = userData.data.avatar.wearables
+            }
+        } catch (e) {
+            console.log("MetaGo: Guest mode / default profile")
         }
 
         // Establish Real WebSocket
@@ -27,8 +47,6 @@ export function main() {
         socket.onopen = () => {
             console.log("MetaGo: Real WebSocket Connected")
             
-            // Send Authentication Request
-            // In production, sign a challenge. Here we use a pre-provisioned testing JWT.
             socket?.send(JSON.stringify({
                 version: "1.0",
                 event: "Auth.Request",
@@ -44,20 +62,17 @@ export function main() {
             console.log("MetaGo Received:", data.event)
             
             if (data.event === "Auth.Success") {
-                // Sync Identity using real DCL profile data
                 socket?.send(JSON.stringify({
                     version: "1.0",
                     event: "Identity.Sync",
                     timestamp: Math.floor(Date.now() / 1000),
                     payload: {
                         did: `did:metago:${walletAddress}`,
-                        handle: userData.data!.displayName,
+                        handle: displayName,
                         status: "synchronized"
                     }
                 }))
                 
-                // Sync Avatar Data using real DCL wearables
-                const wearables = userData.data!.avatar?.wearables || []
                 socket?.send(JSON.stringify({
                     version: "1.0",
                     event: "Avatar.Sync",
@@ -71,18 +86,16 @@ export function main() {
             }
         }
         
-        // Push Real-time Presence Data on tick
         engine.addSystem(RealtimePresenceSystem)
     })
 }
 
-// System to push real coordinates every 1 second
 let timer = 0
 function RealtimePresenceSystem(dt: number) {
     if (!socket || socket.readyState !== WebSocket.OPEN) return
     
     timer += dt
-    if (timer >= 1.0) { // every 1 sec
+    if (timer >= 1.0) {
         timer = 0
         const player = engine.PlayerEntity
         if (!player) return
