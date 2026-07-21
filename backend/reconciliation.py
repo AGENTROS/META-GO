@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
 from web3 import Web3
-from .relayer import relayer, SBT_ABI
+from relayer import relayer, SBT_ABI
 
 logger = logging.getLogger("reconciliation")
 logger.setLevel(logging.INFO)
@@ -311,7 +311,7 @@ async def nightly_reconciliation(db):
                         # If user is active in DB but active is false on-chain, execute database rollback
                         logger.error(f"[RECONCILIATION ROLLBACK] User {wallet} is active in DB but inactive on-chain. Deleting database records.")
                         try:
-                            from .observability import increment_counter
+                            from observability import increment_counter
                         except Exception:
                             from observability import increment_counter
                         increment_counter("reorg_detections_total")

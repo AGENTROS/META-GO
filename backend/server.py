@@ -140,9 +140,9 @@ db = client[DB_NAME]
 # instance for CI or local unit tests.
 if cfg.TEST_MODE:
     try:
-        from .testing_db import get_test_db
+        from testing_db import get_test_db
     except Exception:
-        from .testing_db import get_test_db
+        from testing_db import get_test_db
     db = get_test_db()
 
 SESSION_COOKIE = "metago_session"
@@ -1158,9 +1158,9 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
         existing_handle = await db.users.find_one({"handle": h_norm, "walletAddress": {"$ne": addr}})
         if existing_handle:
             try:
-                from .observability import increment_counter
+                from observability import increment_counter
             except Exception:
-                from .observability import increment_counter
+                from observability import increment_counter
             increment_counter("duplicate_handles_total")
             raise HTTPException(
                 status_code=409,
@@ -1201,9 +1201,9 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
             existing_null = await db.used_nullifiers.find_one({"nullifier": body.zkProof.nullifier})
             if existing_null:
                 try:
-                    from .observability import increment_counter
+                    from observability import increment_counter
                 except Exception:
-                    from .observability import increment_counter
+                    from observability import increment_counter
                 increment_counter("duplicate_nullifiers_total")
                 raise HTTPException(
                     status_code=409,
@@ -1280,7 +1280,7 @@ async def core_register_finalize(body: UserSyncBody, request: Request, password:
         # On-chain integration & Registration state machine
         onchain_reg = {"mode": "skipped"}
         is_test_mode = cfg.TEST_MODE
-        from .relayer import relayer, IS_EPHEMERAL
+        from relayer import relayer, IS_EPHEMERAL
         
         reg_id = str(uuid.uuid4())
         await db.registrations.insert_one({
@@ -1780,7 +1780,7 @@ async def biometrics_register(body: BiometricsRegisterBody, request: Request):
             base64_str = base64_str.split(",")[1]
         image_bytes = base64.b64decode(base64_str)
         
-        from .arcface_verifier import extract_embedding
+        from arcface_verifier import extract_embedding
         embedding = extract_embedding(image_bytes)
         
         await db.users.update_one(
@@ -1842,7 +1842,7 @@ async def biometrics_verify(body: BiometricsRegisterBody, request: Request):
             base64_str = base64_str.split(",")[1]
         image_bytes = base64.b64decode(base64_str)
         
-        from .arcface_verifier import extract_embedding, compute_similarity
+        from arcface_verifier import extract_embedding, compute_similarity
         current_embedding = extract_embedding(image_bytes)
         stored_embedding = stored_template["embedding"]
         
@@ -1890,13 +1890,13 @@ def get_face_liveness_model():
     if face_liveness_model is None:
         if cfg.TEST_MODE:
             try:
-                from .simulators import face_liveness_stub as stub
+                from simulators import face_liveness_stub as stub
             except Exception:
-                from .simulators import face_liveness_stub as stub
+                from simulators import face_liveness_stub as stub
             face_liveness_model = stub
         else:
             try:
-                from .silent_face_liveness import SilentFaceAntiSpoofing
+                from silent_face_liveness import SilentFaceAntiSpoofing
                 face_liveness_model = SilentFaceAntiSpoofing()
             except Exception:
                 class Stub:
@@ -1908,7 +1908,7 @@ def get_face_liveness_model():
 def get_whisper_stt_model():
     global whisper_stt_model
     if whisper_stt_model is None:
-        from .whisper_voice_verifier import WhisperVoiceVerifier
+        from whisper_voice_verifier import WhisperVoiceVerifier
         whisper_stt_model = WhisperVoiceVerifier()
     return whisper_stt_model
 
@@ -1917,13 +1917,13 @@ def get_ecapa_speaker_model():
     if ecapa_speaker_model is None:
         if cfg.TEST_MODE:
             try:
-                from .simulators import ecapa_stub as stub
+                from simulators import ecapa_stub as stub
             except Exception:
-                from .simulators import ecapa_stub as stub
+                from simulators import ecapa_stub as stub
             ecapa_speaker_model = stub
         else:
             try:
-                from .ecapa_speaker_verifier import EcapaSpeakerVerifier
+                from ecapa_speaker_verifier import EcapaSpeakerVerifier
                 ecapa_speaker_model = EcapaSpeakerVerifier()
             except Exception:
                 class Stub:
@@ -1995,13 +1995,13 @@ def get_aasist_spoof_model():
     if aasist_spoof_model is None:
         if cfg.TEST_MODE:
             try:
-                from .simulators import aasist_stub as stub
+                from simulators import aasist_stub as stub
             except Exception:
-                from .simulators import aasist_stub as stub
+                from simulators import aasist_stub as stub
             aasist_spoof_model = stub
         else:
             try:
-                from .aasist_voice_spoof import AasistVoiceSpoofer
+                from aasist_voice_spoof import AasistVoiceSpoofer
                 aasist_spoof_model = AasistVoiceSpoofer()
             except Exception:
                 class Stub:
@@ -2015,13 +2015,13 @@ def get_deepfake_detector_model():
     if deepfake_detector_model is None:
         if cfg.TEST_MODE:
             try:
-                from .simulators import deepfake_stub as stub
+                from simulators import deepfake_stub as stub
             except Exception:
-                from .simulators import deepfake_stub as stub
+                from simulators import deepfake_stub as stub
             deepfake_detector_model = stub
         else:
             try:
-                from .deepfake_bench_detector import DeepfakeBenchDetector
+                from deepfake_bench_detector import DeepfakeBenchDetector
                 deepfake_detector_model = DeepfakeBenchDetector()
             except Exception:
                 class Stub:
@@ -2035,13 +2035,13 @@ def get_risk_engine():
     if risk_engine is None:
         if cfg.TEST_MODE:
             try:
-                from .simulators import risk_engine_stub as stub
+                from simulators import risk_engine_stub as stub
             except Exception:
-                from .simulators import risk_engine_stub as stub
+                from simulators import risk_engine_stub as stub
             risk_engine = stub
         else:
             try:
-                from .risk_engine import BiometricRiskEngine
+                from risk_engine import BiometricRiskEngine
                 risk_engine = BiometricRiskEngine()
             except Exception:
                 class Stub:
@@ -2050,7 +2050,7 @@ def get_risk_engine():
                 risk_engine = Stub()
     return risk_engine
 
-from .challenge_provider import get_challenges
+from challenge_provider import get_challenges
 
 @app.get("/api/user/biometrics/challenge")
 async def biometrics_challenge(count: int = 1, address: str = ""):
@@ -2071,7 +2071,7 @@ async def register_voice(body: VoiceRegistrationBody, request: Request):
     await verify_auth_address(request, addr)
     
     embeddings = []
-    from .ecapa_speaker_verifier import encrypt_template
+    from ecapa_speaker_verifier import encrypt_template
     
     for b64 in body.recordings:
         if "," in b64:
@@ -2144,7 +2144,7 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
 
         # Call arcface embedding verifier if user has stored face template
         if user and "biometricTemplate" in user and "embedding" in user["biometricTemplate"]:
-            from .arcface_verifier import extract_embedding, compute_similarity
+            from arcface_verifier import extract_embedding, compute_similarity
             current_emb = extract_embedding(image_bytes)
             stored_emb = user["biometricTemplate"]["embedding"]
             similarity = compute_similarity(current_emb, stored_emb)
@@ -2188,7 +2188,7 @@ async def biometrics_verify_pipeline(body: BiometricsPipelineBody, request: Requ
             # ECAPA speaker verification
             current_emb = get_ecapa_speaker_model().extract_embedding(audio_bytes)
             if user and "voiceprintEncrypted" in user:
-                from .ecapa_speaker_verifier import decrypt_template
+                from ecapa_speaker_verifier import decrypt_template
                 stored_template = decrypt_template(user["voiceprintEncrypted"])
                 if stored_template:
                     voice_match = get_ecapa_speaker_model().verify_speaker(current_emb, stored_template)
@@ -2458,9 +2458,9 @@ async def relay(body: RelayBody, request: Request):
     bucket.append(now); _relay_buckets[ip] = bucket
     if await db.used_nullifiers.find_one({"nullifier": body.nullifier}):
         try:
-            from .observability import increment_counter
+            from observability import increment_counter
         except Exception:
-            from .observability import increment_counter
+            from observability import increment_counter
         increment_counter("duplicate_nullifiers_total")
         raise HTTPException(status_code=409, detail="Nullifier already used (replay)")
     await db.used_nullifiers.insert_one({
@@ -2862,7 +2862,7 @@ async def demo_stats():
 @app.get("/api/onchain/status/{address}")
 async def onchain_status(address: str):
     try:
-        from .relayer import relayer
+        from relayer import relayer
         if not relayer.available():
             return {"online": False, "mode": "simulation", "chainId": None}
         bal = relayer.get_balance(address)
@@ -2931,9 +2931,9 @@ async def admin_metrics(request: Request):
 async def prometheus_metrics():
     from fastapi.responses import Response
     try:
-        from .observability import get_prometheus_exposition
+        from observability import get_prometheus_exposition
     except Exception:
-        from .observability import get_prometheus_exposition
+        from observability import get_prometheus_exposition
     
     content = get_prometheus_exposition()
     return Response(content=content, media_type="text/plain; version=0.0.4")
@@ -2977,11 +2977,11 @@ async def get_system_status():
     redis_status = "online" if redis_client else "offline"
     
     try:
-        from .relayer import relayer
+        from relayer import relayer
         blockchain_status = "online" if relayer.available() else "offline"
     except Exception:
         try:
-            from .relayer import relayer
+            from relayer import relayer
             blockchain_status = "online" if relayer.available() else "offline"
         except Exception:
             blockchain_status = "offline"
@@ -3553,7 +3553,7 @@ REGISTRY_ABI = [
 ]
 
 def get_contract_guardians(wallet: str) -> Optional[List[str]]:
-    from .relayer import relayer
+    from relayer import relayer
     if not relayer.available() or "IdentityRegistry" not in relayer.addresses:
         return None
     try:
@@ -3568,7 +3568,7 @@ def get_contract_guardians(wallet: str) -> Optional[List[str]]:
         return None
 
 def get_contract_recovery_session(wallet: str) -> Optional[Dict[str, Any]]:
-    from .relayer import relayer
+    from relayer import relayer
     if not relayer.available() or "IdentityRegistry" not in relayer.addresses:
         return None
     try:
@@ -3635,7 +3635,7 @@ async def recovery_initiate(body: RecoveryInitiateBody, request: Request):
     if hashlib.sha256(body.passphrase.encode()).hexdigest() != stored_hash and body.passphrase != stored_hash:
         raise HTTPException(status_code=401, detail="Invalid recovery passphrase")
 
-    from .relayer import relayer
+    from relayer import relayer
     onchain = {"ok": True}
     if relayer.available():
         onchain = relayer.initiate_recovery(
@@ -3905,7 +3905,7 @@ async def sync_chain_post(body: SyncChainBody, request: Request):
     
     # Trigger syncCrossChainFor call via relayer
     sync_tx_id = "0x" + secrets.token_hex(32)
-    from .relayer import relayer
+    from relayer import relayer
     if relayer.available():
         selector = 1 if chain == "arbitrum" else 2
         res = relayer.sync_cross_chain_for(addr, selector)
@@ -3948,7 +3948,7 @@ async def sync_status_get(address: str):
 
 
 async def watch_cross_chain_syncs():
-    from .relayer import relayer
+    from relayer import relayer
     while True:
         try:
             if relayer.available():
@@ -4023,7 +4023,7 @@ async def watch_cross_chain_syncs():
                                 "chainId": w3.eth.chain_id
                             })
                             
-                            from .relayer import DEPLOYER_KEY
+                            from relayer import DEPLOYER_KEY
                             from eth_account import Account
                             signed_tx = Account.sign_transaction(tx, DEPLOYER_KEY)
                             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -4266,8 +4266,8 @@ async def startup_event():
 
     # Start reconciliation, sweeper, and recovery workers
     try:
-        from .reconciliation import start_reconciliation_tasks
+        from reconciliation import start_reconciliation_tasks
     except Exception:
-        from .reconciliation import start_reconciliation_tasks
+        from reconciliation import start_reconciliation_tasks
     start_reconciliation_tasks(db)
 

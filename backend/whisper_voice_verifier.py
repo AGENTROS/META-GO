@@ -14,7 +14,7 @@ import numpy as np
 from typing import Tuple
 
 try:
-    from .silero_vad import get_vad
+    from silero_vad import get_vad
 except ImportError:
     from silero_vad import get_vad
 

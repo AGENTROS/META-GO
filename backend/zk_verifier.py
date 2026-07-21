@@ -92,7 +92,7 @@ class CryptographicVerifier:
     @staticmethod
     def verify_proof_cryptographically(proof: Dict[str, Any], public_signals: List[Any]) -> bool:
         try:
-            from .relayer import relayer
+            from relayer import relayer
         except Exception:
             from relayer import relayer
             
@@ -152,7 +152,7 @@ class MockSnarkjsVerifier:
     @staticmethod
     def verify_proof(proof: Dict[str, Any], public_signals: List[Any]) -> bool:
         try:
-            from .observability import increment_counter
+            from observability import increment_counter
         except Exception:
             from observability import increment_counter
 
