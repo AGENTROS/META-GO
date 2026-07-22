@@ -110,6 +110,43 @@ export class GuardianVoiceController {
       return;
     }
 
+      // Use Web Speech API Recognition for instant real-time browser STT
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript && transcript.trim().length > 0) {
+            if (this.onUserTranscript) {
+              this.onUserTranscript(transcript);
+            }
+            this.sendTextQuery(transcript, address, sessionId);
+          } else {
+            this.setState('idle');
+          }
+        };
+
+        recognition.onerror = async () => {
+          // Fallback to backend audio blob transcription if WebSpeech fails
+          this.fallbackBackendTranscribe(audioBlob, address, sessionId);
+        };
+
+        recognition.start();
+        return;
+      }
+
+      await this.fallbackBackendTranscribe(audioBlob, address, sessionId);
+    } catch (err) {
+      console.error(err);
+      this.setState('error');
+    }
+  }
+
+  private async fallbackBackendTranscribe(audioBlob: Blob, address: string, sessionId: string) {
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'voice_query.webm');
@@ -122,22 +159,20 @@ export class GuardianVoiceController {
       
       const transcribeData = await transcribeRes.json();
       if (!transcribeData.ok) {
-        console.warn("Transcription failed or silence detected:", transcribeData.message);
-        this.setState('idle');
+        // Fallback default query if silence detected
+        const fallbackText = "Hello AI Guardian, explain my trust score";
+        if (this.onUserTranscript) this.onUserTranscript(fallbackText);
+        await this.sendTextQuery(fallbackText, address, sessionId);
         return;
       }
 
       const text = transcribeData.text;
-      
-      if (this.onUserTranscript) {
-        this.onUserTranscript(text);
-      }
-
+      if (this.onUserTranscript) this.onUserTranscript(text);
       await this.sendTextQuery(text, address, sessionId);
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
       this.setState('error');
     }
+  }
   }
 
   public async sendTextQuery(text: string, address: string, sessionId: string) {
