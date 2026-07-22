@@ -42,6 +42,28 @@ export class GuardianTTSProvider {
 
   public async speak(text: string, onStart?: () => void, onEnd?: () => void, onError?: () => void, onBoundary?: (e: SpeechSynthesisEvent) => void): Promise<GuardianSpeechResult> {
     this.cancel();
+
+    // Check if direct Sukuna RVC audio file is provided in public/audio/
+    try {
+      const audioUrl = '/audio/guardian_sukuna.wav';
+      const checkRes = await fetch(audioUrl, { method: 'HEAD' });
+      if (checkRes.ok && checkRes.headers.get('content-type')?.includes('audio')) {
+        const audio = new Audio(audioUrl);
+        return {
+          mode: "audio-buffer",
+          supportsAudioAnalysis: true,
+          play: () => new Promise((resolve, reject) => {
+            audio.onplay = () => { if (onStart) onStart(); };
+            audio.onended = () => { if (onEnd) onEnd(); resolve(); };
+            audio.onerror = (e) => { if (onError) onError(); reject(e); };
+            audio.play().catch(reject);
+          }),
+          cancel: () => { audio.pause(); audio.currentTime = 0; }
+        };
+      }
+    } catch (e) {
+      // Fallback to synth if file not present
+    }
     
     return {
       mode: "browser-speech",
@@ -51,9 +73,9 @@ export class GuardianTTSProvider {
         if (this.voice) {
           this.currentUtterance.voice = this.voice;
         }
-        // Futuristic AI Guardian Voice Tuning
-        this.currentUtterance.rate = 1.05;
-        this.currentUtterance.pitch = 0.85; // Deep robotic AI resonance
+        // Deep Sukuna-like Pitch Tuning (Pitch 0.50 for deep male tone)
+        this.currentUtterance.rate = 0.95;
+        this.currentUtterance.pitch = 0.55; 
 
         this.currentUtterance.onstart = () => {
           if (onStart) onStart();
