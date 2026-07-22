@@ -46,61 +46,52 @@ export class GuardianTTSProvider {
       this.synth.cancel();
     }
 
-    // Clean text of markdown stars, hashes, and formatting for speech synthesis
-    const cleanSpeechText = text
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .replace(/#/g, '')
-      .replace(/-/g, ' ')
-      .replace(/\n/g, '. ')
-      .trim();
+    // Try playing direct Sukuna Voice MP3 file
+    try {
+      const audio = new Audio('/audio/guardian_sukuna.mp3');
+      return {
+        mode: "audio-buffer",
+        supportsAudioAnalysis: true,
+        play: () => new Promise((resolve) => {
+          audio.onplay = () => { if (onStart) onStart(); };
+          audio.onended = () => { if (onEnd) onEnd(); resolve(); };
+          audio.onerror = () => {
+            // Fallback to speech synthesis if audio error
+            this.playFallbackSynth(text, onStart, onEnd, resolve);
+          };
+          audio.play().catch(() => {
+            this.playFallbackSynth(text, onStart, onEnd, resolve);
+          });
+        }),
+        cancel: () => { audio.pause(); audio.currentTime = 0; }
+      };
+    } catch (e) {
+      // Fallback
+    }
 
+    return this.getFallbackResult(text, onStart, onEnd);
+  }
+
+  private playFallbackSynth(text: string, onStart?: () => void, onEnd?: () => void, resolve?: () => void) {
+    const cleanSpeechText = text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/#/g, '').replace(/-/g, ' ').replace(/\n/g, '. ').trim();
+    const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
+    const voices = this.synth.getVoices();
+    if (voices.length > 0) utterance.voice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+    utterance.rate = 1.0;
+    utterance.pitch = 0.5; // Deep Sukuna Pitch
+    utterance.onstart = () => { if (onStart) onStart(); };
+    utterance.onend = () => { if (onEnd) onEnd(); if (resolve) resolve(); };
+    utterance.onerror = () => { if (onEnd) onEnd(); if (resolve) resolve(); };
+    if (this.synth.paused) this.synth.resume();
+    this.synth.speak(utterance);
+  }
+
+  private getFallbackResult(text: string, onStart?: () => void, onEnd?: () => void): GuardianSpeechResult {
     return {
       mode: "browser-speech",
       supportsAudioAnalysis: false,
       play: () => new Promise((resolve) => {
-        const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
-        this.currentUtterance = utterance;
-        
-        // Populate voices dynamically
-        const voices = this.synth.getVoices();
-        if (voices.length > 0) {
-          const selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-          utterance.voice = selectedVoice;
-        }
-
-        utterance.rate = 1.0;
-        utterance.pitch = 0.9;
-        utterance.volume = 1.0;
-
-        utterance.onstart = () => {
-          if (onStart) onStart();
-        };
-
-        utterance.onend = () => {
-          if (onEnd) onEnd();
-          resolve();
-        };
-
-        utterance.onerror = (e) => {
-          console.warn('SpeechSynthesis utterance warning:', e);
-          if (onEnd) onEnd();
-          resolve();
-        };
-
-        if (onBoundary) {
-          utterance.onboundary = onBoundary;
-        }
-
-        // Resume engine if stuck
-        if (this.synth.paused) {
-          this.synth.resume();
-        }
-
-        // Speak utterance
-        setTimeout(() => {
-          this.synth.speak(utterance);
-        }, 50);
+        this.playFallbackSynth(text, onStart, onEnd, resolve);
       }),
       cancel: () => this.cancel()
     };
