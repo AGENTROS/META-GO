@@ -24,7 +24,15 @@ export class GuardianTTSProvider {
     // Attempt to load a good voice
     const loadVoices = () => {
       const voices = this.synth.getVoices();
-      this.voice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US') || voices[0] || null;
+      // Priority list for high-tech AI robotic / assistant voice profiles
+      this.voice = voices.find(v => 
+        v.name.includes('Google UK English Male') || 
+        v.name.includes('Daniel') || 
+        v.name.includes('Jarvis') || 
+        v.name.includes('Natural') || 
+        v.name.includes('Google US English') ||
+        v.lang === 'en-US'
+      ) || voices[0] || null;
     };
     loadVoices();
     if (this.synth.onvoiceschanged !== undefined) {
@@ -43,8 +51,9 @@ export class GuardianTTSProvider {
         if (this.voice) {
           this.currentUtterance.voice = this.voice;
         }
-        this.currentUtterance.rate = 1.0;
-        this.currentUtterance.pitch = 1.0;
+        // Futuristic AI Guardian Voice Tuning
+        this.currentUtterance.rate = 1.05;
+        this.currentUtterance.pitch = 0.85; // Deep robotic AI resonance
 
         this.currentUtterance.onstart = () => {
           if (onStart) onStart();
