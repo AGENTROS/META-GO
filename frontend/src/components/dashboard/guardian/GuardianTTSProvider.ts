@@ -41,7 +41,10 @@ export class GuardianTTSProvider {
   }
 
   public async speak(text: string, onStart?: () => void, onEnd?: () => void, onError?: () => void, onBoundary?: (e: SpeechSynthesisEvent) => void): Promise<GuardianSpeechResult> {
-    this.cancel();
+    // Force stop any ongoing speech
+    if (this.synth.speaking || this.synth.pending) {
+      this.synth.cancel();
+    }
 
     // Clean text of markdown stars, hashes, and formatting for speech synthesis
     const cleanSpeechText = text
@@ -49,52 +52,55 @@ export class GuardianTTSProvider {
       .replace(/\*/g, '')
       .replace(/#/g, '')
       .replace(/-/g, ' ')
-      .replace(/\n/g, '. ');
+      .replace(/\n/g, '. ')
+      .trim();
 
     return {
       mode: "browser-speech",
       supportsAudioAnalysis: false,
-      play: () => new Promise((resolve, reject) => {
-        // Always get latest voices on play call
-        const voices = this.synth.getVoices();
-        const preferredVoice = voices.find(v => 
-          v.name.includes('Google UK English Male') || 
-          v.name.includes('Daniel') || 
-          v.name.includes('Natural') || 
-          v.name.includes('Google US English') ||
-          v.lang.startsWith('en')
-        ) || voices[0] || null;
-
-        this.currentUtterance = new SpeechSynthesisUtterance(cleanSpeechText);
-        if (preferredVoice) {
-          this.currentUtterance.voice = preferredVoice;
-        }
+      play: () => new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(cleanSpeechText);
+        this.currentUtterance = utterance;
         
-        // Deep Male Voice Pitch Tuning
-        this.currentUtterance.rate = 1.0;
-        this.currentUtterance.pitch = 0.8;
-        this.currentUtterance.volume = 1.0;
+        // Populate voices dynamically
+        const voices = this.synth.getVoices();
+        if (voices.length > 0) {
+          const selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+          utterance.voice = selectedVoice;
+        }
 
-        this.currentUtterance.onstart = () => {
+        utterance.rate = 1.0;
+        utterance.pitch = 0.9;
+        utterance.volume = 1.0;
+
+        utterance.onstart = () => {
           if (onStart) onStart();
         };
-        this.currentUtterance.onend = () => {
+
+        utterance.onend = () => {
           if (onEnd) onEnd();
           resolve();
         };
-        this.currentUtterance.onerror = (e) => {
-          if (onError) onError();
-          resolve(); // Resolve to prevent state lockup
+
+        utterance.onerror = (e) => {
+          console.warn('SpeechSynthesis utterance warning:', e);
+          if (onEnd) onEnd();
+          resolve();
         };
+
         if (onBoundary) {
-          this.currentUtterance.onboundary = onBoundary;
+          utterance.onboundary = onBoundary;
         }
 
-        // Resume audio context/synth if paused by browser autoplay policy
+        // Resume engine if stuck
         if (this.synth.paused) {
           this.synth.resume();
         }
-        this.synth.speak(this.currentUtterance);
+
+        // Speak utterance
+        setTimeout(() => {
+          this.synth.speak(utterance);
+        }, 50);
       }),
       cancel: () => this.cancel()
     };
