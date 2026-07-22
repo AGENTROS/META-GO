@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { WalletConnector } from '@/components/auth/WalletConnector';
 import dynamic from 'next/dynamic';
@@ -106,7 +106,10 @@ export default function SignupPage() {
   const [faceLandmarks, setFaceLandmarks] = useState<number[][] | null>(null);
   const [realProof, setRealProof] = useState<any>(null);
   const [voiceHash, setVoiceHash] = useState('');
-  const [operationId] = useState(() => 'op-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+  const [operationId, setOperationId] = useState('');
+  useEffect(() => {
+    setOperationId('op-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+  }, []);
 
   const [consentVoice, setConsentVoice] = useState(true);
   const [consentCrossChain, setConsentCrossChain] = useState(true);
@@ -221,7 +224,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07070A] text-white flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden font-sans select-none">
+    <div suppressHydrationWarning className="min-h-screen bg-[#07070A] text-white flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden font-sans select-none">
       {/* Background Aurora Gradients */}
       <div className="absolute top-[-25%] left-[-15%] w-[650px] h-[650px] rounded-full bg-[#FF3CAC]/8 blur-[160px] pointer-events-none" />
       <div className="absolute bottom-[-25%] right-[-15%] w-[650px] h-[650px] rounded-full bg-[#3AA0FF]/12 blur-[160px] pointer-events-none" />

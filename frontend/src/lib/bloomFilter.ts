@@ -24,8 +24,8 @@ export async function checkHandleAvailability(handle: string): Promise<{ availab
         resolve({ available: data.status === 'AVAILABLE' });
       } catch (e) {
         console.error('Error contacting identity check-handle API:', e);
-        // Fallback to safe unavailable status on network errors
-        resolve({ available: false });
+        // Fallback to available status on network errors so user is not blocked
+        resolve({ available: true });
       }
     }, 300); // 300ms debounce window
   });

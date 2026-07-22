@@ -48,6 +48,14 @@ class UnityConnector(PlatformConnector):
             })
             return False
 
+    async def sync_presence(self, payload: Dict[str, Any]) -> None:
+        if self.transport:
+            await self.transport.send({
+                "event": "Presence.Updated",
+                "version": "1.0",
+                "payload": payload
+            })
+
     async def subscribe_events(self) -> None:
         pass
 

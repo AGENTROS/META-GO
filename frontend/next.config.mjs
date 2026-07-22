@@ -98,14 +98,15 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    const backendHost = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://meta-go.onrender.com';
     return [
       {
         source: '/api/proxy/:path*',
-        destination: 'https://meta-go.onrender.com/:path*'
+        destination: `${backendHost}/:path*`
       },
       {
         source: '/api/ws/proxy/:path*',
-        destination: 'https://meta-go.onrender.com/:path*'
+        destination: `${backendHost}/:path*`
       }
     ];
   },

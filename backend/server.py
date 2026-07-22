@@ -4271,3 +4271,7 @@ async def startup_event():
         from reconciliation import start_reconciliation_tasks
     start_reconciliation_tasks(db)
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="0.0.0.0", port=8001, reload=False)
+

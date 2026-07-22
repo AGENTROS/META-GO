@@ -37,7 +37,10 @@ async def test_event_bus_100_session_stress():
         session_id = str(uuid.uuid4())
         transport = StressTransport()
         connector = await connector_manager.establish_session(session_id, "unity", transport)
-        await connector.authenticate({"token": "mock_valid_token"})
+        import jwt
+        from config import cfg
+        valid_token = jwt.encode({"walletAddress": "0x123"}, cfg.JWT_SECRET or "metago_secure_default_test_jwt_secret_key_32_bytes_long_2026", algorithm="HS256")
+        await connector.authenticate({"token": valid_token})
         sessions.append((session_id, transport))
         
     assert len(connector_manager._active_sessions) == 100
