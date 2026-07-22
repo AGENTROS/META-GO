@@ -43,39 +43,37 @@ export class GuardianTTSProvider {
   public async speak(text: string, onStart?: () => void, onEnd?: () => void, onError?: () => void, onBoundary?: (e: SpeechSynthesisEvent) => void): Promise<GuardianSpeechResult> {
     this.cancel();
 
-    // Check if direct Sukuna RVC audio file is provided in public/audio/
-    try {
-      const audioUrl = '/audio/guardian_sukuna.wav';
-      const checkRes = await fetch(audioUrl, { method: 'HEAD' });
-      if (checkRes.ok && checkRes.headers.get('content-type')?.includes('audio')) {
-        const audio = new Audio(audioUrl);
-        return {
-          mode: "audio-buffer",
-          supportsAudioAnalysis: true,
-          play: () => new Promise((resolve, reject) => {
-            audio.onplay = () => { if (onStart) onStart(); };
-            audio.onended = () => { if (onEnd) onEnd(); resolve(); };
-            audio.onerror = (e) => { if (onError) onError(); reject(e); };
-            audio.play().catch(reject);
-          }),
-          cancel: () => { audio.pause(); audio.currentTime = 0; }
-        };
-      }
-    } catch (e) {
-      // Fallback to synth if file not present
-    }
-    
+    // Clean text of markdown stars, hashes, and formatting for speech synthesis
+    const cleanSpeechText = text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/#/g, '')
+      .replace(/-/g, ' ')
+      .replace(/\n/g, '. ');
+
     return {
       mode: "browser-speech",
       supportsAudioAnalysis: false,
       play: () => new Promise((resolve, reject) => {
-        this.currentUtterance = new SpeechSynthesisUtterance(text);
-        if (this.voice) {
-          this.currentUtterance.voice = this.voice;
+        // Always get latest voices on play call
+        const voices = this.synth.getVoices();
+        const preferredVoice = voices.find(v => 
+          v.name.includes('Google UK English Male') || 
+          v.name.includes('Daniel') || 
+          v.name.includes('Natural') || 
+          v.name.includes('Google US English') ||
+          v.lang.startsWith('en')
+        ) || voices[0] || null;
+
+        this.currentUtterance = new SpeechSynthesisUtterance(cleanSpeechText);
+        if (preferredVoice) {
+          this.currentUtterance.voice = preferredVoice;
         }
-        // Deep Sukuna-like Pitch Tuning (Pitch 0.50 for deep male tone)
-        this.currentUtterance.rate = 0.95;
-        this.currentUtterance.pitch = 0.55; 
+        
+        // Deep Male Voice Pitch Tuning
+        this.currentUtterance.rate = 1.0;
+        this.currentUtterance.pitch = 0.8;
+        this.currentUtterance.volume = 1.0;
 
         this.currentUtterance.onstart = () => {
           if (onStart) onStart();
@@ -86,12 +84,16 @@ export class GuardianTTSProvider {
         };
         this.currentUtterance.onerror = (e) => {
           if (onError) onError();
-          reject(e);
+          resolve(); // Resolve to prevent state lockup
         };
         if (onBoundary) {
           this.currentUtterance.onboundary = onBoundary;
         }
 
+        // Resume audio context/synth if paused by browser autoplay policy
+        if (this.synth.paused) {
+          this.synth.resume();
+        }
         this.synth.speak(this.currentUtterance);
       }),
       cancel: () => this.cancel()
