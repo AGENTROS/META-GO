@@ -3,6 +3,7 @@ from typing import List, Optional
 from ..interfaces.avatar_repo import AvatarRepository
 from ..models.avatar import AvatarModel
 
+
 class MongoAvatarRepository(AvatarRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db.get_collection("avatars")

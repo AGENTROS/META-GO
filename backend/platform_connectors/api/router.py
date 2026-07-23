@@ -16,11 +16,12 @@ connector_manager.register("unreal", UnrealConnector)
 connector_manager.register("roblox", RobloxConnector)
 connector_manager.register("decentraland", DecentralandConnector)
 
+
 @router.websocket("/{platform_id}/stream")
 async def platform_stream(websocket: WebSocket, platform_id: str):
     await websocket.accept()
     transport = WebSocketTransport(websocket)
-    
+
     ConnectorClass = connector_manager.get_connector_class(platform_id)
     if not ConnectorClass:
         await transport.close()

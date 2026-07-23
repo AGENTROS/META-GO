@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionManager:
     def __init__(self):
         # Map wallet_address -> list of active WebSocket connections
@@ -38,19 +39,21 @@ class ConnectionManager:
                 try:
                     await connection.send_text(message)
                 except Exception as e:
-                    logger.warning(f"Error sending to {address_lower}, removing stale socket: {e}")
+                    logger.warning(
+                        f"Error sending to {address_lower}, removing stale socket: {e}"
+                    )
                     stale_connections.append(connection)
             for stale in stale_connections:
                 self.disconnect(stale, address_lower)
 
-    async def broadcast_event(self, wallet_address: str, event_type: str, payload: dict):
+    async def broadcast_event(
+        self, wallet_address: str, event_type: str, payload: dict
+    ):
         """
         Broadcast structured events like 'notification', 'security_alert', 'wallet_update'
         """
-        message = json.dumps({
-            "type": event_type,
-            "payload": payload
-        })
+        message = json.dumps({"type": event_type, "payload": payload})
         await self.send_personal_message(message, wallet_address)
+
 
 manager = ConnectionManager()

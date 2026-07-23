@@ -8,6 +8,7 @@ Speaker verification and enrollment using:
 Templates are Fernet-encrypted before DB storage.
 Never stores raw embeddings or recordings.
 """
+
 import io
 import os
 import wave
@@ -23,10 +24,13 @@ def _get_fernet():
     """Get or create a Fernet instance for encrypting voice templates."""
     try:
         from cryptography.fernet import Fernet
+
         # Prefer explicit VOICE_TEMPLATE_KEY. If present, use it.
         voice_key = os.environ.get("VOICE_TEMPLATE_KEY")
         if voice_key:
-            return Fernet(voice_key.encode() if isinstance(voice_key, str) else voice_key)
+            return Fernet(
+                voice_key.encode() if isinstance(voice_key, str) else voice_key
+            )
 
         # Legacy fallback: try deriving from JWT_SECRET for backward compatibility only.
         jwt_secret = os.environ.get("JWT_SECRET")
@@ -78,12 +82,17 @@ def decrypt_template(encrypted_str: str) -> Optional[Dict[str, Any]]:
                 jwt_secret = os.environ.get("JWT_SECRET")
                 if jwt_secret:
                     from cryptography.fernet import Fernet
-                    raw = hashlib.sha256(f"voicetemplate:{jwt_secret}".encode()).digest()
+
+                    raw = hashlib.sha256(
+                        f"voicetemplate:{jwt_secret}".encode()
+                    ).digest()
                     key = base64.urlsafe_b64encode(raw)
                     payload = Fernet(key).decrypt(data)
                     return json.loads(payload.decode())
             except Exception as e:
-                print(f"[EcapaSpeakerVerifier] Failed to decrypt template (legacy attempt): {e}")
+                print(
+                    f"[EcapaSpeakerVerifier] Failed to decrypt template (legacy attempt): {e}"
+                )
         return None
     except Exception as e:
         print(f"[EcapaSpeakerVerifier] Failed to decrypt template: {e}")
@@ -100,9 +109,12 @@ def reencrypt_template_with_voice_key(encrypted_str: str) -> Optional[str]:
         if data is None:
             return None
         from cryptography.fernet import Fernet
+
         voice_key = os.environ.get("VOICE_TEMPLATE_KEY")
         if not voice_key:
-            raise RuntimeError("VOICE_TEMPLATE_KEY not configured; cannot re-encrypt template.")
+            raise RuntimeError(
+                "VOICE_TEMPLATE_KEY not configured; cannot re-encrypt template."
+            )
         f = Fernet(voice_key.encode() if isinstance(voice_key, str) else voice_key)
         payload = json.dumps(data, separators=(",", ":")).encode()
         return f.encrypt(payload).decode()
@@ -125,16 +137,21 @@ class EcapaSpeakerVerifier:
         # Attempt to load SpeechBrain ECAPA-TDNN
         try:
             from speechbrain.inference.speaker import SpeakerRecognition  # type: ignore
+
             self.verifier = SpeakerRecognition.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb",
-                savedir=os.path.join(os.path.dirname(__file__), "models", "ecapa")
+                savedir=os.path.join(os.path.dirname(__file__), "models", "ecapa"),
             )
             self.has_speechbrain = True
             print("[EcapaSpeakerVerifier] Loaded SpeechBrain ECAPA-TDNN model.")
         except ImportError:
-            print("[EcapaSpeakerVerifier] speechbrain not installed. Using analytical fallback.")
+            print(
+                "[EcapaSpeakerVerifier] speechbrain not installed. Using analytical fallback."
+            )
         except Exception as e:
-            print(f"[EcapaSpeakerVerifier] SpeechBrain load failed: {e}. Using analytical fallback.")
+            print(
+                f"[EcapaSpeakerVerifier] SpeechBrain load failed: {e}. Using analytical fallback."
+            )
 
     # ------------------------------------------------------------------
     # Embedding extraction
@@ -167,9 +184,15 @@ class EcapaSpeakerVerifier:
             tmp_path = f.name
 
         try:
-            embedding = self.verifier.encode_batch(
-                self.verifier.load_audio(tmp_path).unsqueeze(0)
-            ).squeeze(0).detach().cpu().numpy()
+            embedding = (
+                self.verifier.encode_batch(
+                    self.verifier.load_audio(tmp_path).unsqueeze(0)
+                )
+                .squeeze(0)
+                .detach()
+                .cpu()
+                .numpy()
+            )
             # Normalize L2
             norm = np.linalg.norm(embedding)
             if norm > 0:
@@ -191,7 +214,7 @@ class EcapaSpeakerVerifier:
         Returns dict with 'type': 'analytical' and 'features'.
         """
         try:
-            wav_file = wave.open(io.BytesIO(audio_bytes), 'rb')
+            wav_file = wave.open(io.BytesIO(audio_bytes), "rb")
             n_channels = wav_file.getnchannels()
             samp_width = wav_file.getsampwidth()
             frame_rate = wav_file.getframerate()
@@ -204,9 +227,13 @@ class EcapaSpeakerVerifier:
         if samp_width == 2:
             signal = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
         elif samp_width == 1:
-            signal = (np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0) * 256.0
+            signal = (
+                np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0
+            ) * 256.0
         else:
-            signal = np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+            signal = (
+                np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+            )
 
         if n_channels > 1:
             signal = signal.reshape(-1, n_channels).mean(axis=1)
@@ -219,9 +246,9 @@ class EcapaSpeakerVerifier:
         max_lag = int(frame_rate / 60)
         center = len(signal) // 2
         seg_len = min(len(signal), int(frame_rate * 0.5))
-        segment = signal[max(0, center - seg_len // 2): center + seg_len // 2]
-        autocorr = np.correlate(segment, segment, mode='full')
-        autocorr = autocorr[len(autocorr) // 2:]
+        segment = signal[max(0, center - seg_len // 2) : center + seg_len // 2]
+        autocorr = np.correlate(segment, segment, mode="full")
+        autocorr = autocorr[len(autocorr) // 2 :]
         if len(autocorr) > max_lag and max_lag > min_lag:
             r_lag = autocorr[min_lag:max_lag]
             peak_lag = int(np.argmax(r_lag)) + min_lag
@@ -247,9 +274,12 @@ class EcapaSpeakerVerifier:
 
         # 4. Energy variance (rhythm / dynamic range)
         frame_len = max(1, int(frame_rate * 0.04))
-        frames = [signal[i:i + frame_len] for i in range(0, len(signal), frame_len)
-                  if len(signal[i:i + frame_len]) > 0]
-        frame_rms = [float(np.sqrt(np.mean(f ** 2))) for f in frames]
+        frames = [
+            signal[i : i + frame_len]
+            for i in range(0, len(signal), frame_len)
+            if len(signal[i : i + frame_len]) > 0
+        ]
+        frame_rms = [float(np.sqrt(np.mean(f**2))) for f in frames]
         energy_variance = float(np.var(frame_rms)) if frame_rms else 0.0
 
         # 5. Zero Crossing Rate (voiced/unvoiced ratio)
@@ -280,7 +310,7 @@ class EcapaSpeakerVerifier:
                 "sub_bands": sub_bands,
                 "zcr": avg_zcr,
                 "formants": formants,
-            }
+            },
         }
 
     def _parse_non_wav(self, audio_bytes: bytes) -> Optional[Dict[str, Any]]:
@@ -291,18 +321,20 @@ class EcapaSpeakerVerifier:
             if len(signal) < 100:
                 return None
             pitch = 130.0
-            rms = float(np.sqrt(np.mean(signal ** 2)))
+            rms = float(np.sqrt(np.mean(signal**2)))
             return {
                 "type": "analytical",
                 "embedding": None,
                 "features": {
                     "pitch": pitch,
                     "spectral_center": 1200.0,
-                    "energy_var": float(np.var(signal[:1000])) if len(signal) > 1000 else 0.0,
+                    "energy_var": (
+                        float(np.var(signal[:1000])) if len(signal) > 1000 else 0.0
+                    ),
                     "sub_bands": [0.125] * 8,
                     "zcr": 0.05,
                     "formants": [500.0, 1500.0, 2500.0],
-                }
+                },
             }
         except Exception:
             return None
@@ -311,7 +343,9 @@ class EcapaSpeakerVerifier:
     # Template building (signup: combine 3-5 recordings)
     # ------------------------------------------------------------------
 
-    def build_combined_template(self, embeddings: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def build_combined_template(
+        self, embeddings: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
         """
         Combine multiple embeddings (from 3-5 signup recordings) into one template.
         For ECAPA embeddings: average + L2-normalize.
@@ -321,8 +355,12 @@ class EcapaSpeakerVerifier:
         if not valid:
             return None
 
-        ecapa_embs = [e for e in valid if e.get("type") == "ecapa_192d" and e.get("embedding")]
-        analytical_embs = [e for e in valid if e.get("type") == "analytical" and e.get("features")]
+        ecapa_embs = [
+            e for e in valid if e.get("type") == "ecapa_192d" and e.get("embedding")
+        ]
+        analytical_embs = [
+            e for e in valid if e.get("type") == "analytical" and e.get("features")
+        ]
 
         template: Dict[str, Any] = {"version": "2", "count": len(valid)}
 
@@ -365,7 +403,7 @@ class EcapaSpeakerVerifier:
     def verify_speaker(
         self,
         current_embedding: Optional[Dict[str, Any]],
-        stored_template: Dict[str, Any]
+        stored_template: Dict[str, Any],
     ) -> float:
         """
         Compare current embedding against stored template.
@@ -383,7 +421,9 @@ class EcapaSpeakerVerifier:
         ):
             s = np.array(stored_template["embedding"], dtype=np.float32)
             c = np.array(current_embedding["embedding"], dtype=np.float32)
-            cosine = float(np.dot(s, c) / (np.linalg.norm(s) * np.linalg.norm(c) + 1e-10))
+            cosine = float(
+                np.dot(s, c) / (np.linalg.norm(s) * np.linalg.norm(c) + 1e-10)
+            )
             # Cosine 0.85+ = excellent, 0.70 = borderline, <0.55 = mismatch
             score = max(0.0, min(100.0, (cosine - 0.50) / 0.50 * 100.0))
             return score
@@ -409,15 +449,25 @@ class EcapaSpeakerVerifier:
         curr_bands = np.array(curr.get("sub_bands", [0.125] * 8), dtype=np.float32)
         stor_bands = np.array(stored.get("sub_bands", [0.125] * 8), dtype=np.float32)
         n1, n2 = np.linalg.norm(curr_bands), np.linalg.norm(stor_bands)
-        band_score = (float(np.dot(curr_bands, stor_bands)) / (n1 * n2 + 1e-10)) * 100.0 if (n1 > 0 and n2 > 0) else 50.0
+        band_score = (
+            (float(np.dot(curr_bands, stor_bands)) / (n1 * n2 + 1e-10)) * 100.0
+            if (n1 > 0 and n2 > 0)
+            else 50.0
+        )
 
         # 3. Spectral centroid diff
-        center_diff = abs(curr.get("spectral_center", 1200.0) - stored.get("spectral_center", 1200.0))
+        center_diff = abs(
+            curr.get("spectral_center", 1200.0) - stored.get("spectral_center", 1200.0)
+        )
         center_score = max(0.0, min(100.0, (1.0 - center_diff / 1200.0) * 100.0))
 
         # 4. Formant similarity
-        curr_f = np.array(curr.get("formants", [500.0, 1500.0, 2500.0]), dtype=np.float32)
-        stor_f = np.array(stored.get("formants", [500.0, 1500.0, 2500.0]), dtype=np.float32)
+        curr_f = np.array(
+            curr.get("formants", [500.0, 1500.0, 2500.0]), dtype=np.float32
+        )
+        stor_f = np.array(
+            stored.get("formants", [500.0, 1500.0, 2500.0]), dtype=np.float32
+        )
         formant_diff = float(np.mean(np.abs(curr_f - stor_f)))
         formant_score = max(0.0, min(100.0, (1.0 - formant_diff / 800.0) * 100.0))
 

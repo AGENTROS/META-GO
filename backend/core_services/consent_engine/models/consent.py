@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 import uuid
 
+
 class ConsentModel(BaseModel):
     consent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     did: str
@@ -18,7 +19,6 @@ class ConsentModel(BaseModel):
     def revoke(self):
         self.is_revoked = True
         self.revoked_at = datetime.utcnow()
-        self.audit_trail.append({
-            "action": "REVOKED",
-            "timestamp": self.revoked_at.isoformat()
-        })
+        self.audit_trail.append(
+            {"action": "REVOKED", "timestamp": self.revoked_at.isoformat()}
+        )

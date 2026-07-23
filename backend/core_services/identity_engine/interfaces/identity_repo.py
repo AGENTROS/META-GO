@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from ..models.passport import PassportModel
 
+
 class IdentityRepository(ABC):
     @abstractmethod
     async def save(self, passport: PassportModel) -> None:

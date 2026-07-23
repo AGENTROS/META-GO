@@ -5,6 +5,7 @@ from config import cfg
 
 _app = None
 
+
 def get_app():
     global _app
     if _app is None:
@@ -17,10 +18,15 @@ def get_app():
         from insightface.app import FaceAnalysis
 
         # Load only detection and recognition modules on CPU to minimize memory and startup time
-        _app = FaceAnalysis(name='buffalo_l', allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'])
+        _app = FaceAnalysis(
+            name="buffalo_l",
+            allowed_modules=["detection", "recognition"],
+            providers=["CPUExecutionProvider"],
+        )
         _app.prepare(ctx_id=0, det_size=(640, 640))
         print("InsightFace FaceAnalysis loaded successfully!")
     return _app
+
 
 def extract_embedding(image_bytes) -> list:
     """
@@ -33,7 +39,7 @@ def extract_embedding(image_bytes) -> list:
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Invalid image bytes. Unable to decode image.")
-            
+
         # 2. Extract aligned face objects using InsightFace or simulator in TEST_MODE
         if cfg.TEST_MODE:
             try:
@@ -47,16 +53,20 @@ def extract_embedding(image_bytes) -> list:
 
         # 3. Handle validation checks for face counts
         if len(faces) == 0:
-            raise ValueError("No face detected in the image. Please ensure your face is fully visible.")
+            raise ValueError(
+                "No face detected in the image. Please ensure your face is fully visible."
+            )
         if len(faces) > 1:
-            raise ValueError("Multiple faces detected in the image. Please ensure only one face is visible.")
+            raise ValueError(
+                "Multiple faces detected in the image. Please ensure only one face is visible."
+            )
 
         face = faces[0]
 
         # 4. Safely extract normalized 512-dimensional embedding
-        if hasattr(face, 'normed_embedding') and face.normed_embedding is not None:
+        if hasattr(face, "normed_embedding") and face.normed_embedding is not None:
             embedding = face.normed_embedding
-        elif hasattr(face, 'embedding') and face.embedding is not None:
+        elif hasattr(face, "embedding") and face.embedding is not None:
             emb = face.embedding
             norm = np.linalg.norm(emb)
             embedding = emb / norm if norm > 0 else emb
@@ -67,6 +77,7 @@ def extract_embedding(image_bytes) -> list:
     except Exception as e:
         print(f"ArcFace embedding extraction error: {str(e)}")
         raise e
+
 
 def compute_similarity(emb1: list, emb2: list) -> float:
     """

@@ -3,6 +3,7 @@ from typing import Optional
 from ..interfaces.identity_repo import IdentityRepository
 from ..models.passport import PassportModel
 
+
 class MongoIdentityRepository(IdentityRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db.get_collection("identities")

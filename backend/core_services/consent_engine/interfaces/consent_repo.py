@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List
 from ..models.consent import ConsentModel
 
+
 class ConsentRepository(ABC):
     @abstractmethod
     async def save(self, consent: ConsentModel) -> None:

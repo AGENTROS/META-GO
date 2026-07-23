@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from ..interfaces.avatar_provider import AvatarProvider
 
+
 class ReadyPlayerMeProvider(AvatarProvider):
     @property
     def provider_name(self) -> str:
@@ -11,7 +12,7 @@ class ReadyPlayerMeProvider(AvatarProvider):
             "provider_avatar_id": "rpm_12345",
             "asset_url": "https://models.readyplayer.me/rpm_12345.glb",
             "skeleton_type": "humanoid",
-            "metadata": {"style": "realistic"}
+            "metadata": {"style": "realistic"},
         }
 
     async def import_avatar(self, asset_url: str) -> Dict[str, Any]:
@@ -19,7 +20,7 @@ class ReadyPlayerMeProvider(AvatarProvider):
             "provider_avatar_id": "rpm_imported",
             "asset_url": asset_url,
             "skeleton_type": "humanoid",
-            "metadata": {"source": "external"}
+            "metadata": {"source": "external"},
         }
 
     async def export_avatar(self, avatar_id: str) -> str:

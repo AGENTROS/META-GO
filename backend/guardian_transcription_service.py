@@ -9,6 +9,7 @@ Features:
 - Whisper transcription
 - Transcript validation (filters out hallucinations/empty noise)
 """
+
 import tempfile
 import os
 import io
@@ -17,6 +18,7 @@ import numpy as np
 
 try:
     import imageio_ffmpeg
+
     os.environ["PATH"] += os.pathsep + os.path.dirname(imageio_ffmpeg.get_ffmpeg_exe())
 except ImportError:
     pass
@@ -26,6 +28,7 @@ try:
 except ImportError:
     from silero_vad import get_vad
 
+
 class GuardianTranscriptionService:
     def __init__(self, model_size: str = "base"):
         self.model_size = model_size
@@ -34,11 +37,16 @@ class GuardianTranscriptionService:
 
         try:
             import whisper  # type: ignore
+
             self.model = whisper.load_model(model_size)
             self.has_whisper = True
-            print(f"[GuardianTranscriptionService] Loaded openai-whisper model: {model_size}")
+            print(
+                f"[GuardianTranscriptionService] Loaded openai-whisper model: {model_size}"
+            )
         except ImportError:
-            print("[GuardianTranscriptionService] openai-whisper not installed. Will use fallback.")
+            print(
+                "[GuardianTranscriptionService] openai-whisper not installed. Will use fallback."
+            )
         except Exception as e:
             print(f"[GuardianTranscriptionService] Failed to load whisper model: {e}")
 
@@ -50,12 +58,12 @@ class GuardianTranscriptionService:
         # Step 1: VAD & Duration Check
         vad = get_vad()
         voice_present, vad_conf, vad_reason = vad.check_voice_activity(audio_bytes)
-        
+
         if not voice_present:
             return {
                 "ok": False,
                 "code": "NO_SPEECH_DETECTED",
-                "message": f"No meaningful speech was detected. Reason: {vad_reason}"
+                "message": f"No meaningful speech was detected. Reason: {vad_reason}",
             }
 
         # Step 2: Transcribe
@@ -66,30 +74,42 @@ class GuardianTranscriptionService:
                 return {
                     "ok": False,
                     "code": "TRANSCRIPTION_ERROR",
-                    "message": f"Whisper inference failed: {str(e)}"
+                    "message": f"Whisper inference failed: {str(e)}",
                 }
         else:
             # Analytical fallback since OpenAI whisper is not installed
-            print("[GuardianTranscriptionService] Whisper missing. Using analytical fallback transcript.")
+            print(
+                "[GuardianTranscriptionService] Whisper missing. Using analytical fallback transcript."
+            )
             text = "What is my trust score and humanity index?"
 
         # Step 3: Transcript Validation
         text = text.strip()
-        
+
         # Whisper hallucinations often look like repeated symbols or specific phrases
-        hallucinations = ["Thank you.", "Thank you", "you", ".", "...", "Subtitle by", "Amara.org", "Thank you for watching!"]
-        
-        if not text or text in hallucinations or len(text.replace(".", "").replace(",", "").strip()) < 2:
+        hallucinations = [
+            "Thank you.",
+            "Thank you",
+            "you",
+            ".",
+            "...",
+            "Subtitle by",
+            "Amara.org",
+            "Thank you for watching!",
+        ]
+
+        if (
+            not text
+            or text in hallucinations
+            or len(text.replace(".", "").replace(",", "").strip()) < 2
+        ):
             return {
                 "ok": False,
                 "code": "NO_SPEECH_DETECTED",
-                "message": "No meaningful speech was detected (hallucination filtered)."
+                "message": "No meaningful speech was detected (hallucination filtered).",
             }
-            
-        return {
-            "ok": True,
-            "text": text
-        }
+
+        return {"ok": True, "text": text}
 
     def _run_whisper(self, audio_bytes: bytes) -> str:
         import tempfile
@@ -109,8 +129,10 @@ class GuardianTranscriptionService:
             except Exception:
                 pass
 
+
 # Singleton instance
 guardian_stt_model = None
+
 
 def get_guardian_stt_model():
     global guardian_stt_model

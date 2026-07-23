@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from ..models.trust_score import TrustScoreModel
 
+
 class TrustRepository(ABC):
     @abstractmethod
     async def save(self, score: TrustScoreModel) -> None:

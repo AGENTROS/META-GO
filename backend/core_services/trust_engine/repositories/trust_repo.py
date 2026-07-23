@@ -3,6 +3,7 @@ from typing import Optional
 from ..interfaces.trust_repo import TrustRepository
 from ..models.trust_score import TrustScoreModel
 
+
 class MongoTrustRepository(TrustRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db.get_collection("trust_scores")

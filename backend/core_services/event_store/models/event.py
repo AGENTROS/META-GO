@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import uuid4
 
+
 class EventModel(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_name: str
