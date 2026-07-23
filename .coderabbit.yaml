@@ -1,0 +1,12 @@
+# CodeRabbit configuration file
+language: "en"
+tone_instructions: "Please be concise, helpful, and polite. Focus on critical bugs and security issues. Keep it brief."
+
+reviews:
+  profile: "standard"
+  request_changes_workflow: false
+  high_level_summary: true
+  line_by_line_comments: true
+
+chat:
+  auto_reply: true
