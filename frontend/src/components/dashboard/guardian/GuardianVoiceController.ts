@@ -174,7 +174,7 @@ export class GuardianVoiceController {
       this.setState('error');
     }
   }
-  }
+
 
   public async sendTextQuery(text: string, address: string, sessionId: string) {
     if (this._state === 'speaking') {
