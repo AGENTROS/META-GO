@@ -3,6 +3,7 @@ import itertools
 import copy
 import uuid
 
+
 class AsyncInMemoryCursor:
     def __init__(self, docs):
         self._docs = docs
@@ -12,7 +13,7 @@ class AsyncInMemoryCursor:
 
     def sort(self, key, direction=-1):
         self._sort_key = key
-        self._sort_desc = (direction == -1)
+        self._sort_desc = direction == -1
         return self
 
     def limit(self, n):
@@ -24,12 +25,14 @@ class AsyncInMemoryCursor:
         if self._sort_key:
             docs.sort(key=lambda d: d.get(self._sort_key, ""), reverse=self._sort_desc)
         if self._limit is not None:
-            docs = docs[:self._limit]
-        
+            docs = docs[: self._limit]
+
         async def gen():
             for d in docs:
                 yield copy.deepcopy(d)
+
         return gen()
+
 
 class AsyncInMemoryCollection:
     def __init__(self):
@@ -107,7 +110,11 @@ class AsyncInMemoryCollection:
                             new[kk] = vv
                     self._docs[idx] = new
                     modified_count += 1
-            return type("R", (), {"matched_count": modified_count, "modified_count": modified_count})()
+            return type(
+                "R",
+                (),
+                {"matched_count": modified_count, "modified_count": modified_count},
+            )()
 
     async def update_one(self, filter, update, upsert=False, **kwargs):
         async with self._lock:
@@ -185,13 +192,12 @@ class AsyncInMemoryDB:
         self.dids = AsyncInMemoryCollection()
         self.avatar_deployments = AsyncInMemoryCollection()
 
-
     async def command(self, cmd):
         # support simple 'ping' used by health checks
         if isinstance(cmd, str) and cmd.lower() == "ping":
             return {"ok": True}
         return {"ok": False, "cmd": cmd}
 
+
 def get_test_db():
     return AsyncInMemoryDB()
-

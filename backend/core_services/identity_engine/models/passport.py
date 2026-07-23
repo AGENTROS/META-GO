@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
+
 class PassportModel(BaseModel):
     did: str
     user_id: str
@@ -14,11 +15,11 @@ class PassportModel(BaseModel):
     humanity_status: str = "pending"
     biometric_version: Optional[str] = None
     consent_status: str = "none"
-    
+
     # Placeholders for future engines
     trust_score: Optional[float] = None
     presence_timeline: List[dict] = Field(default_factory=list)
     guardian_state: dict = Field(default_factory=dict)
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

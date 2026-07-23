@@ -7,18 +7,20 @@ from api_gateway.database import db
 
 router = APIRouter(prefix="/api/v1/consent", tags=["Consent"])
 
+
 @router.post("/grant", response_model=StandardResponse[dict])
 async def grant_consent(request: Request):
     return StandardResponse(
         success=True,
         data={"message": "Consent granted successfully"},
-        request_id=getattr(request.state, "correlation_id", "unknown")
+        request_id=getattr(request.state, "correlation_id", "unknown"),
     )
+
 
 @router.post("/revoke", response_model=StandardResponse[dict])
 async def revoke_consent(request: Request):
     return StandardResponse(
         success=True,
         data={"message": "Consent revoked successfully"},
-        request_id=getattr(request.state, "correlation_id", "unknown")
+        request_id=getattr(request.state, "correlation_id", "unknown"),
     )

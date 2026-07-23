@@ -23,15 +23,18 @@ METRICS: Dict[str, float] = {
     "duplicate_handles_total": 0.0,
 }
 
+
 def increment_counter(name: str, value: float = 1.0) -> None:
     with METRICS_LOCK:
         if name in METRICS:
             METRICS[name] += value
 
+
 def set_gauge(name: str, value: float) -> None:
     with METRICS_LOCK:
         if name in METRICS:
             METRICS[name] = value
+
 
 def get_prometheus_exposition() -> str:
     """Generates the metrics in standard Prometheus Text Exposition Format (v0.0.4)."""
@@ -46,12 +49,14 @@ def get_prometheus_exposition() -> str:
             lines.append(f"{metric_name} {val}")
     return "\n".join(lines) + "\n"
 
+
 # Sentry initialization
 SENTRY_INITIALIZED = False
 sentry_dsn = os.environ.get("SENTRY_DSN")
 if sentry_dsn:
     try:
         import sentry_sdk
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             traces_sample_rate=1.0,
@@ -60,7 +65,10 @@ if sentry_dsn:
         SENTRY_INITIALIZED = True
         logger.info("Sentry initialized successfully via environment DSN.")
     except ImportError:
-        logger.warning("Sentry SDK (sentry-sdk) is not installed. Logs will not be sent to Sentry.")
+        logger.warning(
+            "Sentry SDK (sentry-sdk) is not installed. Logs will not be sent to Sentry."
+        )
+
 
 # Loki Non-blocking Background Queue Handler
 class LokiQueueHandler(logging.Handler):
@@ -96,16 +104,26 @@ class LokiQueueHandler(logging.Handler):
                 payload = {
                     "streams": [
                         {
-                            "stream": {"app": "meta-go", "env": os.environ.get("ENV", "production")},
-                            "values": [[str(ns), f"[{level}] {msg}"] for ns, level, msg in batch]
+                            "stream": {
+                                "app": "meta-go",
+                                "env": os.environ.get("ENV", "production"),
+                            },
+                            "values": [
+                                [str(ns), f"[{level}] {msg}"]
+                                for ns, level, msg in batch
+                            ],
                         }
                     ]
                 }
                 try:
                     headers = {"Content-Type": "application/json"}
-                    response = requests.post(self.loki_url, json=payload, headers=headers, timeout=2)
+                    response = requests.post(
+                        self.loki_url, json=payload, headers=headers, timeout=2
+                    )
                     if response.status_code != 204:
-                        logger.warning(f"Loki push failed with status code: {response.status_code}")
+                        logger.warning(
+                            f"Loki push failed with status code: {response.status_code}"
+                        )
                 except Exception as e:
                     # Fail silently in logging thread to prevent raising uncaught errors in core application
                     pass
@@ -116,11 +134,12 @@ class LokiQueueHandler(logging.Handler):
         self.stop_event.set()
         super().close()
 
+
 loki_url = os.environ.get("LOKI_URL")
 if loki_url:
     try:
         loki_handler = LokiQueueHandler(loki_url)
-        loki_handler.setFormatter(logging.Formatter('%(message)s'))
+        loki_handler.setFormatter(logging.Formatter("%(message)s"))
         logging.getLogger().addHandler(loki_handler)
         logger.info(f"Grafana Loki logging handler attached to Loki URL: {loki_url}")
     except Exception as e:

@@ -12,6 +12,8 @@ class AvatarValidator:
             raise ValueError(f"File too large. Max allowed: {cls.MAX_SIZE_MB}MB")
 
         if metadata.get("skeleton_type") != "humanoid":
-            raise ValueError("Only 'humanoid' skeletons are currently supported for cross-platform animation compatibility.")
+            raise ValueError(
+                "Only 'humanoid' skeletons are currently supported for cross-platform animation compatibility."
+            )
 
         return True

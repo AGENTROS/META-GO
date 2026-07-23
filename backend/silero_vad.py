@@ -5,6 +5,7 @@ Voice Activity Detection using:
 1. Silero VAD ONNX model (if available in models/ directory)
 2. High-fidelity energy-based analytical fallback (RMS + ZCR sliding window)
 """
+
 import io
 import wave
 import numpy as np
@@ -52,19 +53,21 @@ class SileroVAD:
     def _run_silero(self, audio_bytes: bytes) -> Tuple[bool, float, str]:
         """Run Silero ONNX VAD model."""
         try:
-            wav_file = wave.open(io.BytesIO(audio_bytes), 'rb')
+            wav_file = wave.open(io.BytesIO(audio_bytes), "rb")
             frame_rate = wav_file.getframerate()
             n_frames = wav_file.getnframes()
             raw_data = wav_file.readframes(n_frames)
             wav_file.close()
 
-            signal = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / 32768.0
-            
+            signal = (
+                np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / 32768.0
+            )
+
             # Silero expects 16kHz, 1 channel
             if frame_rate != 16000:
                 # Simple downsampling (rough)
                 ratio = frame_rate / 16000
-                signal = signal[::int(ratio)] if ratio > 1 else signal
+                signal = signal[:: int(ratio)] if ratio > 1 else signal
 
             # Run ONNX inference
             input_name = self.model.get_inputs()[0].name
@@ -75,7 +78,11 @@ class SileroVAD:
             if speech_prob > 0.5:
                 return True, speech_prob, "Speech detected by Silero VAD"
             else:
-                return False, speech_prob, f"No speech detected (confidence: {speech_prob:.2f})"
+                return (
+                    False,
+                    speech_prob,
+                    f"No speech detected (confidence: {speech_prob:.2f})",
+                )
         except Exception as e:
             raise RuntimeError(f"Silero inference error: {e}")
 
@@ -84,7 +91,7 @@ class SileroVAD:
         Analytical VAD using energy, ZCR, and spectral features.
         """
         try:
-            wav_file = wave.open(io.BytesIO(audio_bytes), 'rb')
+            wav_file = wave.open(io.BytesIO(audio_bytes), "rb")
             n_channels = wav_file.getnchannels()
             samp_width = wav_file.getsampwidth()
             frame_rate = wav_file.getframerate()
@@ -95,9 +102,13 @@ class SileroVAD:
             if samp_width == 2:
                 signal = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
             elif samp_width == 1:
-                signal = (np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0) * 256.0
+                signal = (
+                    np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0
+                ) * 256.0
             else:
-                signal = np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+                signal = (
+                    np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+                )
 
             if n_channels > 1:
                 signal = signal.reshape(-1, n_channels).mean(axis=1)
@@ -111,43 +122,58 @@ class SileroVAD:
                 return False, 0.0, "Empty audio signal"
 
             # 1. RMS Energy check
-            rms = float(np.sqrt(np.mean(signal ** 2)))
+            rms = float(np.sqrt(np.mean(signal**2)))
             if rms < 80:
-                return False, 0.0, "Audio level too low — please speak louder and closer to the microphone"
+                return (
+                    False,
+                    0.0,
+                    "Audio level too low — please speak louder and closer to the microphone",
+                )
 
             # 2. Check active speech percentage using frame energy
             frame_len = int(frame_rate * 0.025)  # 25ms frames
             if frame_len == 0:
                 frame_len = 256
-            
-            frames = [signal[i:i + frame_len] for i in range(0, len(signal), frame_len)
-                      if len(signal[i:i + frame_len]) == frame_len]
-            
+
+            frames = [
+                signal[i : i + frame_len]
+                for i in range(0, len(signal), frame_len)
+                if len(signal[i : i + frame_len]) == frame_len
+            ]
+
             if not frames:
                 return False, 0.1, "Could not analyze audio frames"
 
-            frame_energies = [float(np.sqrt(np.mean(f ** 2))) for f in frames]
+            frame_energies = [float(np.sqrt(np.mean(f**2))) for f in frames]
             noise_floor = np.percentile(frame_energies, 10)
             speech_threshold = max(noise_floor * 3.0, 200.0)
-            
+
             active_frames = sum(1 for e in frame_energies if e > speech_threshold)
             speech_ratio = active_frames / len(frame_energies)
 
             if speech_ratio < 0.1:
-                return False, speech_ratio, f"Insufficient speech detected ({speech_ratio*100:.0f}% activity) — please speak the full challenge phrase"
+                return (
+                    False,
+                    speech_ratio,
+                    f"Insufficient speech detected ({speech_ratio*100:.0f}% activity) — please speak the full challenge phrase",
+                )
 
             # 3. Zero Crossing Rate — distinguishes speech from noise/hiss
             zcr_per_frame = []
-            for f in frames[:min(len(frames), 50)]:
+            for f in frames[: min(len(frames), 50)]:
                 zcr = float(np.sum(np.abs(np.diff(np.sign(f)))) / (2 * len(f)))
                 zcr_per_frame.append(zcr)
-            
+
             avg_zcr = float(np.mean(zcr_per_frame)) if zcr_per_frame else 0.0
             # Human speech: ZCR between 0.01 and 0.15
             zcr_ok = 0.005 <= avg_zcr <= 0.20
 
             if not zcr_ok and speech_ratio < 0.2:
-                return False, speech_ratio * 0.5, "Audio pattern does not match human speech characteristics"
+                return (
+                    False,
+                    speech_ratio * 0.5,
+                    "Audio pattern does not match human speech characteristics",
+                )
 
             # Combined confidence score
             energy_conf = min(1.0, rms / 3000.0)
@@ -171,17 +197,26 @@ class SileroVAD:
             signal = np.frombuffer(audio_bytes[44:], dtype=np.int16).astype(np.float32)
             if len(signal) == 0:
                 signal = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
-            
-            rms = float(np.sqrt(np.mean(signal ** 2))) if len(signal) > 0 else 0.0
+
+            rms = float(np.sqrt(np.mean(signal**2))) if len(signal) > 0 else 0.0
             if rms > 100:
-                return True, min(1.0, rms / 5000.0), "Speech likely detected (raw parse)"
+                return (
+                    True,
+                    min(1.0, rms / 5000.0),
+                    "Speech likely detected (raw parse)",
+                )
             return False, 0.0, "Could not detect speech in audio data"
         except Exception:
-            return False, 0.0, "Audio format not recognized — ensure microphone permission is granted"
+            return (
+                False,
+                0.0,
+                "Audio format not recognized — ensure microphone permission is granted",
+            )
 
 
 # Module-level singleton
 _silero_vad_instance = None
+
 
 def get_vad() -> SileroVAD:
     global _silero_vad_instance

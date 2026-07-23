@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
+
 class BiometricTemplateModel(BaseModel):
     did: str
     biometric_type: str  # "face", "voice", etc.

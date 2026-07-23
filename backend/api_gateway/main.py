@@ -13,6 +13,7 @@ from core_services.avatar_engine.api import router as avatar_router
 from api_gateway.routes import events as events_router
 from api_gateway.routes import biometrics_legacy as biometrics_legacy_router
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup Events
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown Events
     await close_mongo_connection()
+
 
 settings = get_settings()
 
@@ -30,7 +32,7 @@ app = FastAPI(
     version=settings.VERSION,
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url=None
+    redoc_url=None,
 )
 
 app.add_middleware(

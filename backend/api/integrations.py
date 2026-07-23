@@ -12,10 +12,12 @@ MOCK_USER_INTEGRATIONS = {
     # Others like 'opensea', 'decentraland', 'uniswap', etc. are implicitly false
 }
 
+
 @integrations_router.get("/status")
 async def get_integration_status():
     """Returns the current connected integrations."""
     return {"status": "success", "data": MOCK_USER_INTEGRATIONS}
+
 
 @integrations_router.get("/connect/{provider}")
 async def connect_integration(provider: str, request: Request):
@@ -25,8 +27,11 @@ async def connect_integration(provider: str, request: Request):
     """
     provider = provider.lower()
     # Redirect to the frontend's callback/simulation page
-    frontend_callback_url = f"http://localhost:3000/dashboard/integrations/callback?provider={provider}"
+    frontend_callback_url = (
+        f"http://localhost:3000/dashboard/integrations/callback?provider={provider}"
+    )
     return RedirectResponse(url=frontend_callback_url)
+
 
 @integrations_router.post("/callback/{provider}")
 async def integration_callback(provider: str):

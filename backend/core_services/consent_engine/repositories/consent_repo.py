@@ -3,6 +3,7 @@ from typing import List
 from ..interfaces.consent_repo import ConsentRepository
 from ..models.consent import ConsentModel
 
+
 class MongoConsentRepository(ConsentRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         self._collection = db.get_collection("consents")

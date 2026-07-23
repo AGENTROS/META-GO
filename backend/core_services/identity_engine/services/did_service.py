@@ -1,6 +1,7 @@
 import uuid
 from ..models.did import DIDModel
 
+
 class DIDService:
     @staticmethod
     def generate_did() -> DIDModel:

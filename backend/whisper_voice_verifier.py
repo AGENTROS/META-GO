@@ -8,6 +8,7 @@ Challenge transcript verification using:
 
 Also runs Silero VAD check before any STT processing.
 """
+
 import io
 import wave
 import numpy as np
@@ -34,13 +35,18 @@ class WhisperVoiceVerifier:
         try:
             import whisper  # type: ignore
             import os
+
             self.model = whisper.load_model(model_size)
             self.has_whisper = True
             print(f"[WhisperVoiceVerifier] Loaded openai-whisper model: {model_size}")
         except ImportError:
-            print("[WhisperVoiceVerifier] openai-whisper not installed. Using analytical fallback.")
+            print(
+                "[WhisperVoiceVerifier] openai-whisper not installed. Using analytical fallback."
+            )
         except Exception as e:
-            print(f"[WhisperVoiceVerifier] Failed to load whisper model: {e}. Using analytical fallback.")
+            print(
+                f"[WhisperVoiceVerifier] Failed to load whisper model: {e}. Using analytical fallback."
+            )
 
     def transcribe_and_verify(
         self, audio_bytes: bytes, expected_text: str
@@ -65,12 +71,16 @@ class WhisperVoiceVerifier:
             try:
                 return self._run_whisper(audio_bytes, expected_text)
             except Exception as e:
-                print(f"[WhisperVoiceVerifier] Whisper inference failed: {e}. Using analytical fallback.")
+                print(
+                    f"[WhisperVoiceVerifier] Whisper inference failed: {e}. Using analytical fallback."
+                )
 
         # Step 3: Analytical fallback
         return self._run_analytical_fallback(audio_bytes, expected_text)
 
-    def _run_whisper(self, audio_bytes: bytes, expected_text: str) -> Tuple[str, float, float]:
+    def _run_whisper(
+        self, audio_bytes: bytes, expected_text: str
+    ) -> Tuple[str, float, float]:
         """Run actual Whisper STT inference."""
         import whisper  # type: ignore
         import tempfile, os
@@ -102,8 +112,10 @@ class WhisperVoiceVerifier:
         Compute word-level overlap ratio between transcribed and expected text.
         Returns score 0-100.
         """
+
         def normalize(s: str) -> list:
             import re
+
             return re.sub(r"[^a-z0-9\s]", "", s.lower()).split()
 
         t_words = normalize(transcribed)
@@ -137,7 +149,7 @@ class WhisperVoiceVerifier:
         - SNR quality check
         """
         try:
-            wav_file = wave.open(io.BytesIO(audio_bytes), 'rb')
+            wav_file = wave.open(io.BytesIO(audio_bytes), "rb")
             n_channels = wav_file.getnchannels()
             samp_width = wav_file.getsampwidth()
             frame_rate = wav_file.getframerate()
@@ -148,9 +160,13 @@ class WhisperVoiceVerifier:
             if samp_width == 2:
                 signal = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
             elif samp_width == 1:
-                signal = (np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0) * 256.0
+                signal = (
+                    np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0
+                ) * 256.0
             else:
-                signal = np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+                signal = (
+                    np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+                )
 
             if n_channels > 1:
                 signal = signal.reshape(-1, n_channels).mean(axis=1)
@@ -160,7 +176,7 @@ class WhisperVoiceVerifier:
             word_count = len(expected_words)
 
             # Signal presence check
-            rms = float(np.sqrt(np.mean(signal ** 2))) if len(signal) > 0 else 0.0
+            rms = float(np.sqrt(np.mean(signal**2))) if len(signal) > 0 else 0.0
             if rms < 80:
                 return "[No Audio Signal]", 0.0, 0.0
 
@@ -175,20 +191,34 @@ class WhisperVoiceVerifier:
 
             # Energy peak counting (syllable detection)
             chunk_size = max(1, int(frame_rate * 0.08))
-            chunks = [signal[i:i+chunk_size] for i in range(0, len(signal), chunk_size)
-                      if len(signal[i:i+chunk_size]) > 0]
-            chunk_rms = [float(np.sqrt(np.mean(c ** 2))) for c in chunks]
+            chunks = [
+                signal[i : i + chunk_size]
+                for i in range(0, len(signal), chunk_size)
+                if len(signal[i : i + chunk_size]) > 0
+            ]
+            chunk_rms = [float(np.sqrt(np.mean(c**2))) for c in chunks]
             threshold = max(np.mean(chunk_rms) * 0.6, 100.0)
             active_chunks = sum(1 for r in chunk_rms if r > threshold)
-            
+
             # Speech rate: ~3-5 syllables per second
             expected_syllables = word_count * 1.5
             actual_rate = active_chunks / max(duration, 0.1)
-            rate_score = max(0.0, min(100.0, (1.0 - abs(actual_rate - expected_syllables / max(duration, 0.1)) / 10.0) * 100.0))
+            rate_score = max(
+                0.0,
+                min(
+                    100.0,
+                    (
+                        1.0
+                        - abs(actual_rate - expected_syllables / max(duration, 0.1))
+                        / 10.0
+                    )
+                    * 100.0,
+                ),
+            )
 
             speech_accuracy = 0.55 * duration_score + 0.45 * rate_score
             # DO NOT artificially floor the score to 30.0! Let it fail!
-            speech_accuracy = min(95.0, speech_accuracy) 
+            speech_accuracy = min(95.0, speech_accuracy)
 
             # Voice confidence (SNR)
             noise_floor = max(float(np.percentile(np.abs(signal), 10)), 1e-5)
@@ -197,7 +227,9 @@ class WhisperVoiceVerifier:
             voice_confidence = 0.65 * snr_score + 0.35 * speech_accuracy
             voice_confidence = min(94.0, voice_confidence)
 
-            transcribed = expected_text if speech_accuracy > 55 else f"[Partial speech detected]"
+            transcribed = (
+                expected_text if speech_accuracy > 55 else f"[Partial speech detected]"
+            )
 
             return transcribed, float(speech_accuracy), float(voice_confidence)
 
@@ -208,7 +240,9 @@ class WhisperVoiceVerifier:
             print(f"[WhisperVoiceVerifier] Analytical fallback error: {e}")
             return "[Error analyzing audio]", 0.0, 0.0
 
-    def _non_wav_fallback(self, audio_bytes: bytes, expected_text: str) -> Tuple[str, float, float]:
+    def _non_wav_fallback(
+        self, audio_bytes: bytes, expected_text: str
+    ) -> Tuple[str, float, float]:
         """Fallback for non-WAV audio (webm/ogg from browser MediaRecorder)."""
         try:
             # Try raw int16 parse after skipping headers
@@ -218,7 +252,7 @@ class WhisperVoiceVerifier:
                     if len(data) < 100:
                         continue
                     signal = np.frombuffer(data, dtype=np.int16).astype(np.float32)
-                    rms = float(np.sqrt(np.mean(signal ** 2)))
+                    rms = float(np.sqrt(np.mean(signal**2)))
                     if rms > 80:
                         # High enough acoustic energy implies valid speech was submitted
                         return expected_text, 92.0, 88.0

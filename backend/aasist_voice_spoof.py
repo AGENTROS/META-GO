@@ -2,9 +2,10 @@
 Meta Go — AASIST Voice Anti-Spoofing (Upgraded)
 =================================================
 Detects AI-generated, deepfake, or replay attacks.
-Uses AASIST model if available, else a tighter analytical 
+Uses AASIST model if available, else a tighter analytical
 spectral analysis fallback to detect robotic artifacts.
 """
+
 import io
 import os
 import wave
@@ -46,7 +47,9 @@ class AasistVoiceSpoofer:
             try:
                 return self._run_aasist(audio_bytes)
             except Exception as e:
-                print(f"[AasistVoiceSpoofer] AASIST inference failed: {e}. Using analytical fallback.")
+                print(
+                    f"[AasistVoiceSpoofer] AASIST inference failed: {e}. Using analytical fallback."
+                )
 
         return self._run_analytical_spoof_check(audio_bytes)
 
@@ -55,7 +58,9 @@ class AasistVoiceSpoofer:
         # Placeholder for actual tensor inference
         return True, 95.0, "AASIST verified human voice"
 
-    def _run_analytical_spoof_check(self, audio_bytes: bytes) -> Tuple[bool, float, str]:
+    def _run_analytical_spoof_check(
+        self, audio_bytes: bytes
+    ) -> Tuple[bool, float, str]:
         """
         Analytical fallback for deepfake / AI voice detection.
         Looks for:
@@ -64,7 +69,7 @@ class AasistVoiceSpoofer:
         3. Extreme high-frequency roll-off (compression/generation artifact)
         """
         try:
-            wav_file = wave.open(io.BytesIO(audio_bytes), 'rb')
+            wav_file = wave.open(io.BytesIO(audio_bytes), "rb")
             n_channels = wav_file.getnchannels()
             samp_width = wav_file.getsampwidth()
             frame_rate = wav_file.getframerate()
@@ -77,9 +82,13 @@ class AasistVoiceSpoofer:
         if samp_width == 2:
             signal = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
         elif samp_width == 1:
-            signal = (np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0) * 256.0
+            signal = (
+                np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) - 128.0
+            ) * 256.0
         else:
-            signal = np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+            signal = (
+                np.frombuffer(raw_data, dtype=np.int32).astype(np.float32) / 65536.0
+            )
 
         if n_channels > 1:
             signal = signal.reshape(-1, n_channels).mean(axis=1)
@@ -91,52 +100,68 @@ class AasistVoiceSpoofer:
         # 1. Pitch Variance (Micro-jitter)
         # AI voices often lack natural micro-fluctuations in pitch (jitter).
         frame_len = max(1, int(frame_rate * 0.05))
-        frames = [signal[i:i + frame_len] for i in range(0, len(signal), frame_len) if len(signal[i:i + frame_len]) == frame_len]
-        
+        frames = [
+            signal[i : i + frame_len]
+            for i in range(0, len(signal), frame_len)
+            if len(signal[i : i + frame_len]) == frame_len
+        ]
+
         zero_crossings = [float(np.sum(np.abs(np.diff(np.sign(f))))) for f in frames]
         zcr_var = float(np.var(zero_crossings)) if zero_crossings else 0.0
 
         # Natural human speech has high variance in ZCR due to consonants/breath.
         # AI models sometimes oversmooth this.
         if zcr_var < 5.0:
-            return False, 35.0, "Voice lacks natural acoustic variance (Possible AI generation)"
+            return (
+                False,
+                35.0,
+                "Voice lacks natural acoustic variance (Possible AI generation)",
+            )
 
         # 2. High Frequency Energy (Breath/Air)
         # Vocoders (like HiFi-GAN used in ElevenLabs/VITS) often struggle with >6kHz.
         fft_data = np.abs(np.fft.rfft(signal))
         freqs = np.fft.rfftfreq(len(signal), d=1.0 / frame_rate)
-        
+
         hf_idx = np.where(freqs > 5000)[0]
         lf_idx = np.where((freqs > 100) & (freqs <= 5000))[0]
-        
+
         hf_energy = float(np.sum(fft_data[hf_idx] ** 2)) if len(hf_idx) > 0 else 0.0
         lf_energy = float(np.sum(fft_data[lf_idx] ** 2)) if len(lf_idx) > 0 else 1.0
-        
+
         hf_ratio = hf_energy / lf_energy
 
         # Human voices have breath noise; extreme lack of HF energy suggests vocoder.
         if hf_ratio < 0.0001:
-            return False, 42.0, "Missing high-frequency acoustic artifacts (Possible Vocoder/AI)"
+            return (
+                False,
+                42.0,
+                "Missing high-frequency acoustic artifacts (Possible Vocoder/AI)",
+            )
         elif hf_ratio > 0.5:
-             # Extreme high freq might be adversarial noise
-             return False, 45.0, "Unnatural high-frequency spectrum detected"
+            # Extreme high freq might be adversarial noise
+            return False, 45.0, "Unnatural high-frequency spectrum detected"
 
         # 3. Dynamic Range (Silence to Peak)
         # Replay attacks or AI voices are often heavily normalized.
-        rms = float(np.sqrt(np.mean(signal ** 2)))
+        rms = float(np.sqrt(np.mean(signal**2)))
         peak = float(np.max(np.abs(signal)))
         crest_factor = peak / (rms + 1e-10)
 
         if crest_factor < 2.5:
-             return False, 48.0, "Dynamic range is unnaturally compressed (Possible Replay attack)"
+            return (
+                False,
+                48.0,
+                "Dynamic range is unnaturally compressed (Possible Replay attack)",
+            )
 
         # Score calculation (Baseline human starts at 95, penalize for perfection)
         score = 98.0
-        
+
         # Penalize low variance
         if zcr_var < 20.0:
             score -= (20.0 - zcr_var) * 1.5
-            
+
         # Penalize low HF ratio
         if hf_ratio < 0.001:
             score -= (0.001 - hf_ratio) * 10000.0
@@ -146,7 +171,11 @@ class AasistVoiceSpoofer:
         if score >= 65.0:
             return True, score, "Voice liveness verified"
         else:
-            return False, score, "Voice failed liveness check (Deepfake / Spoof suspected)"
+            return (
+                False,
+                score,
+                "Voice failed liveness check (Deepfake / Spoof suspected)",
+            )
 
     def _parse_non_wav_spoof(self, audio_bytes: bytes) -> Tuple[bool, float, str]:
         """Handle non-WAV formats."""
@@ -156,9 +185,9 @@ class AasistVoiceSpoofer:
             signal = np.frombuffer(data, dtype=np.int16).astype(np.float32)
             if len(signal) < 100:
                 return False, 0.0, "Invalid audio format"
-            
+
             # Very loose check for non-wav since we can't do spectral easily
-            rms = float(np.sqrt(np.mean(signal ** 2)))
+            rms = float(np.sqrt(np.mean(signal**2)))
             if rms > 50:
                 return True, 75.0, "Liveness verified (Basic proxy)"
             return False, 40.0, "Failed basic liveness proxy"

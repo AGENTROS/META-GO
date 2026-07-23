@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
+
 class GraphEdgeModel(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     did: str

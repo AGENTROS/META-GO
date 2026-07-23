@@ -1,5 +1,6 @@
 import os
-os.environ['TEST_MODE'] = '1'
+
+os.environ["TEST_MODE"] = "1"
 import time
 import base64
 import asyncio
@@ -8,19 +9,19 @@ from fastapi.testclient import TestClient
 # Ensure project root is importable
 import sys
 from pathlib import Path
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import server
 
+
 async def setup_session(token, wallet):
     await server.db.sessions.delete_many({})
     await server.db.users.delete_many({})
-    await server.db.sessions.insert_one({
-        "token": token,
-        "walletAddress": wallet,
-        "expiresAt": time.time() + 3600
-    })
+    await server.db.sessions.insert_one(
+        {"token": token, "walletAddress": wallet, "expiresAt": time.time() + 3600}
+    )
     # insert a user doc for update
     await server.db.users.insert_one({"walletAddress": wallet})
 
@@ -41,7 +42,9 @@ def run_smoke():
     print("challenge status:", r.status_code, r.json())
 
     # 2. register voice (send small dummy base64 audio)
-    dummy_audio = base64.b64encode(b"this is a dummy audio blob for smoke test").decode()
+    dummy_audio = base64.b64encode(
+        b"this is a dummy audio blob for smoke test"
+    ).decode()
     body = {"walletAddress": wallet, "recordings": [dummy_audio]}
     # Try with Authorization header first
     headers = {"Authorization": f"Bearer {token}"}
@@ -53,5 +56,5 @@ def run_smoke():
     print("register status:", r2.status_code, r2.json())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_smoke()

@@ -1,6 +1,7 @@
 import pytest
 from core_services.config import get_settings
 
+
 def test_settings_load():
     settings = get_settings()
     assert settings.PROJECT_NAME == "MetaGo Universal Identity Protocol"

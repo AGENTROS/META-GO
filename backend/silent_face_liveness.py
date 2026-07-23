@@ -2,13 +2,15 @@ import cv2
 import numpy as np
 import os
 
+
 class SilentFaceAntiSpoofing:
     """
     Silent Face Anti-Spoofing Model wrapper.
     If models/weights are available, runs neural network inference.
-    Otherwise, falls back to a high-fidelity OpenCV/NumPy mathematical analysis 
+    Otherwise, falls back to a high-fidelity OpenCV/NumPy mathematical analysis
     of image quality, specular reflection, Moire patterns, and lighting distributions.
     """
+
     def __init__(self, model_dir=None):
         self.model_dir = model_dir
         self.has_neural_model = False
@@ -36,8 +38,10 @@ class SilentFaceAntiSpoofing:
                 # return pred
                 pass
             except Exception as e:
-                print(f"Silent Face NN evaluation failed: {e}. Falling back to analytical mode.")
-        
+                print(
+                    f"Silent Face NN evaluation failed: {e}. Falling back to analytical mode."
+                )
+
         return self._run_analytical_fallback(face_image)
 
     def _run_analytical_fallback(self, img: np.ndarray) -> tuple[float, float]:
@@ -70,7 +74,7 @@ class SilentFaceAntiSpoofing:
         f_transform = np.fft.fft2(gray)
         f_shift = np.fft.fftshift(f_transform)
         magnitude_spectrum = 20 * np.log(np.abs(f_shift) + 1)
-        
+
         # Check high-frequency grid coordinates for peaks (screen capture grid noise)
         center_y, center_x = h // 2, w // 2
         # Exclude the DC and low-frequency components
@@ -78,7 +82,7 @@ class SilentFaceAntiSpoofing:
         cv2.circle(mask, (center_x, center_y), min(h, w) // 6, 0, -1)
         high_freq_mags = magnitude_spectrum * mask
         peak_ratio = np.max(high_freq_mags) / (np.mean(magnitude_spectrum) + 1e-5)
-        
+
         # Higher peak ratio outside center indicates periodic Moire line pattern (screen display grids)
         moire_score = max(0.0, min(100.0, (peak_ratio - 1.5) * 40.0))
 
@@ -90,9 +94,14 @@ class SilentFaceAntiSpoofing:
         flatness_penalty = max(0.0, min(100.0, (140 - non_zero_bins) * 1.5))
 
         # Weighted calculation
-        liveness_score = 0.4 * blur_score + 0.3 * (100.0 - moire_score) + 0.2 * (100.0 - reflection_penalty) + 0.1 * (100.0 - flatness_penalty)
+        liveness_score = (
+            0.4 * blur_score
+            + 0.3 * (100.0 - moire_score)
+            + 0.2 * (100.0 - reflection_penalty)
+            + 0.1 * (100.0 - flatness_penalty)
+        )
         liveness_score = max(1.0, min(99.8, liveness_score))
-        
+
         # Spoof risk is inverse of liveness but sensitive to direct spoof indicators
         spoof_risk = 100.0 - liveness_score
         if moire_score > 60.0 or reflection_penalty > 50.0 or flatness_penalty > 70.0:

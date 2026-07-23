@@ -5,6 +5,7 @@ Provides cryptographically secure, random, unique voice challenge phrases
 for voice enrollment and verification. Generates a 10,000+ phrase corpus
 from grammatical templates to avoid repetition and ensure freshness.
 """
+
 import secrets
 import hashlib
 from typing import List, Optional
@@ -14,48 +15,118 @@ from collections import deque
 # Base Vocabulary
 # ---------------------------------------------------------------------------
 _SUBJECTS = [
-    "The sovereign node", "My digital identity", "The verified protocol",
-    "A secure token", "This trusted session", "The cryptographic key",
-    "My biometric proof", "The identity vault", "A sovereign credential",
-    "The authentication engine", "My encrypted ledger", "This verified claim",
-    "The blockchain record", "A zero knowledge proof", "The decentralized node",
-    "My private key", "The sovereign chain", "A verified attestation",
-    "The secure enclave", "My identity passport",
+    "The sovereign node",
+    "My digital identity",
+    "The verified protocol",
+    "A secure token",
+    "This trusted session",
+    "The cryptographic key",
+    "My biometric proof",
+    "The identity vault",
+    "A sovereign credential",
+    "The authentication engine",
+    "My encrypted ledger",
+    "This verified claim",
+    "The blockchain record",
+    "A zero knowledge proof",
+    "The decentralized node",
+    "My private key",
+    "The sovereign chain",
+    "A verified attestation",
+    "The secure enclave",
+    "My identity passport",
 ]
 
 _VERBS = [
-    "grants access to", "protects", "validates", "secures", "authorizes",
-    "confirms", "verifies", "unlocks", "authenticates", "certifies",
-    "signs", "endorses", "attests to", "seals", "guards",
-    "encrypts", "anchors", "commits to", "establishes", "proves",
+    "grants access to",
+    "protects",
+    "validates",
+    "secures",
+    "authorizes",
+    "confirms",
+    "verifies",
+    "unlocks",
+    "authenticates",
+    "certifies",
+    "signs",
+    "endorses",
+    "attests to",
+    "seals",
+    "guards",
+    "encrypts",
+    "anchors",
+    "commits to",
+    "establishes",
+    "proves",
 ]
 
 _OBJECTS = [
-    "the sovereign network", "all digital assets", "my private identity",
-    "this trusted session", "the verified protocol", "my biometric data",
-    "the cryptographic proof", "the distributed ledger", "my sovereign vault",
-    "all future transactions", "the secure enclave", "my decentralized DID",
-    "the authenticated record", "this encrypted channel", "the identity passport",
-    "my on-chain credential", "the privacy layer", "the zero trust model",
-    "all governance rights", "the federated claim",
+    "the sovereign network",
+    "all digital assets",
+    "my private identity",
+    "this trusted session",
+    "the verified protocol",
+    "my biometric data",
+    "the cryptographic proof",
+    "the distributed ledger",
+    "my sovereign vault",
+    "all future transactions",
+    "the secure enclave",
+    "my decentralized DID",
+    "the authenticated record",
+    "this encrypted channel",
+    "the identity passport",
+    "my on-chain credential",
+    "the privacy layer",
+    "the zero trust model",
+    "all governance rights",
+    "the federated claim",
 ]
 
 _ADVERBS = [
-    "permanently", "securely", "privately", "completely", "instantly",
-    "faithfully", "reliably", "cryptographically", "autonomously", "verifiably",
-    "irrevocably", "immutably", "transparently", "accurately", "definitively",
-    "independently", "continuously", "precisely", "robustly", "unconditionally",
+    "permanently",
+    "securely",
+    "privately",
+    "completely",
+    "instantly",
+    "faithfully",
+    "reliably",
+    "cryptographically",
+    "autonomously",
+    "verifiably",
+    "irrevocably",
+    "immutably",
+    "transparently",
+    "accurately",
+    "definitively",
+    "independently",
+    "continuously",
+    "precisely",
+    "robustly",
+    "unconditionally",
 ]
 
 _LOCATIONS = [
-    "on the Polygon network", "across all chains", "within the trusted enclave",
-    "through zero knowledge", "at the identity layer", "on the secure ledger",
-    "in the sovereign vault", "across decentralized nodes", "within the W3C protocol",
-    "on the distributed chain", "at the authentication boundary", "via SIWE signature",
-    "through cryptographic attestation", "on the verified registry",
-    "within the biometric pipeline", "at the consensus layer",
-    "across federated identity providers", "via the DID resolver",
-    "in the privacy-preserving layer", "on the immutable record",
+    "on the Polygon network",
+    "across all chains",
+    "within the trusted enclave",
+    "through zero knowledge",
+    "at the identity layer",
+    "on the secure ledger",
+    "in the sovereign vault",
+    "across decentralized nodes",
+    "within the W3C protocol",
+    "on the distributed chain",
+    "at the authentication boundary",
+    "via SIWE signature",
+    "through cryptographic attestation",
+    "on the verified registry",
+    "within the biometric pipeline",
+    "at the consensus layer",
+    "across federated identity providers",
+    "via the DID resolver",
+    "in the privacy-preserving layer",
+    "on the immutable record",
 ]
 
 # ---------------------------------------------------------------------------
@@ -176,6 +247,7 @@ def _generate_corpus() -> List[str]:
     corpus = list(_FIXED_CORPUS)
     # Generate 10000 random grammatical combinations to ensure massive variety
     import random
+
     for _ in range(10000):
         # 50% chance to include adverb
         if random.random() > 0.5:
@@ -186,11 +258,11 @@ def _generate_corpus() -> List[str]:
     return list(set(corpus))  # Ensure uniqueness
 
 
-
 # ---------------------------------------------------------------------------
 # Singleton Corpus
 # ---------------------------------------------------------------------------
 _CORPUS: Optional[List[str]] = None
+
 
 def _get_corpus() -> List[str]:
     global _CORPUS
@@ -220,20 +292,20 @@ def get_challenges(wallet_address: str, count: int = 1) -> List[str]:
     """
     wallet_key = wallet_address.strip().lower()
     corpus = _get_corpus()
-    
+
     if wallet_key not in _recent_challenges:
         _recent_challenges[wallet_key] = deque(maxlen=_MAX_RECENT)
-    
+
     recent = _recent_challenges[wallet_key]
     recent_set = set(recent)
-    
+
     available = [p for p in corpus if p not in recent_set]
-    
+
     # If somehow all phrases have been used (impossible with 10k), reset
     if len(available) < count:
         recent.clear()
         available = corpus
-    
+
     selected: List[str] = []
     # Use secure random selection without replacement
     pool = list(available)
@@ -242,14 +314,18 @@ def get_challenges(wallet_address: str, count: int = 1) -> List[str]:
         phrase = pool.pop(idx)
         selected.append(phrase)
         recent.appendleft(phrase)
-    
+
     return selected
 
 
 def get_challenge(wallet_address: str = "") -> str:
     """Convenience function to get a single challenge phrase."""
     results = get_challenges(wallet_address, count=1)
-    return results[0] if results else "I authorize this secure identity verification session"
+    return (
+        results[0]
+        if results
+        else "I authorize this secure identity verification session"
+    )
 
 
 def corpus_size() -> int:

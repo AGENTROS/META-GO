@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger("metago.transport.websocket")
 
+
 class WebSocketTransport(BaseTransport):
     def __init__(self, websocket: WebSocket):
         self.websocket = websocket

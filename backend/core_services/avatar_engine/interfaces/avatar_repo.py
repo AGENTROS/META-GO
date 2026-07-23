@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from ..models.avatar import AvatarModel
 
+
 class AvatarRepository(ABC):
     @abstractmethod
     async def save(self, avatar: AvatarModel) -> None:
