@@ -80,8 +80,9 @@ export class GuardianVoiceController {
   public async stopListening(address: string, sessionId: string) {
     if (this._state !== 'listening') return;
     
-    this.stopAudioAnalysis();
-    this.onLevelChange(0); // Reset level
+    try {
+      this.stopAudioAnalysis();
+      this.onLevelChange(0); // Reset level
 
     const duration = Date.now() - this.recordingStartTime;
     if (duration < 500) {
